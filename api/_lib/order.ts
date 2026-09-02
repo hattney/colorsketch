@@ -16,7 +16,7 @@
  * to an unpaid state.
  */
 import type { StyleVariant, SubjectModule } from '../../src/utils/prompt.js';
-import { redisGetJSON, redisSetJSON } from './redis.js';
+import { RedisNotConfigured, redisGetJSON, redisSetJSON } from './redis.js';
 import { newOrderId } from './ids.js';
 
 export type OrderStatus =
@@ -111,7 +111,14 @@ const KEY = (orderId: string) => `order:${orderId}`;
 
 export async function loadOrder(orderId: string): Promise<OrderRecord | null> {
   if (!orderId) return null;
-  return redisGetJSON<OrderRecord>(KEY(orderId));
+  try {
+    return await redisGetJSON<OrderRecord>(KEY(orderId));
+  } catch (e) {
+    // No store configured → no orders exist. Callers that need to *write* (saveOrder,
+    // createOrder) still throw, and they guard on redisConfigured() first.
+    if (e instanceof RedisNotConfigured) return null;
+    throw e;
+  }
 }
 
 /** Writes the record, refreshing its 7-day TTL and `updatedAt`. Returns what was stored. */
