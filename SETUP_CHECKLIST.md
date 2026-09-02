@@ -118,22 +118,35 @@ Vercel → Settings → Environment Variables 에 직접 추가:
 
 ---
 
-## 6. (선택) Resend — 발급 실패 시 관리자 알림
+## 6. (선택) Resend — 발급 메일 + 실패 알림
 
-결제는 됐는데 파일 발급이 3번 실패하면 관리자에게 메일이 갑니다. 없어도 앱은 돌아갑니다.
+결제 완료 시 구매자에게 다운로드 링크 메일, 발급 3회 실패 시 관리자·구매자에게 메일이 갑니다.
+없어도 앱은 돌아갑니다(다운로드는 `/thanks` 페이지 + localStorage 배너로 복구).
 
 [resend.com](https://resend.com) → 가입 → API Keys → Create
 
 | 변수 | 값 |
 |---|---|
 | `RESEND_API_KEY` | `re_...` |
+| `RESEND_FROM` | `ColorSketch <noreply@내도메인>` — ⚠️ **Resend에서 도메인 검증을 해야** 구매자에게 메일이 나감. 미검증 상태면 계정 소유자(=`ADMIN_EMAIL`)에게만 전송됨 → 테스트 땐 관리자 알림만 확인 가능 |
 | `ADMIN_EMAIL` | 알림 받을 주소 (gold.auri26@gmail.com 등) |
 
 ---
 
-## 7. Lemon Squeezy (결제) — ⏸ Task 5 완료 후
+## 6b. CRON_SECRET — 7일 자동 삭제 보호 (필수)
 
-> Claude가 "Task 5 완료"라고 하기 전엔 건너뛰세요. 결제 코드가 아직 없습니다.
+Vercel Blob은 자동 만료가 없어서 매일 도는 정리 작업(`api/cron/cleanup.ts`)이 7일 지난
+이미지를 지웁니다. Terms의 "7일 내 삭제" 약속이 여기 달려 있습니다.
+
+| 변수 | 값 |
+|---|---|
+| `CRON_SECRET` | 아무 긴 랜덤 문자열 (예: `openssl rand -hex 24` 결과). Vercel이 cron 호출 시 `Authorization: Bearer <값>`으로 보냄 → 이게 없으면 URL 아는 사람이 정리 작업을 트리거할 수 있음 |
+
+`vercel.json`에 cron 스케줄(`매일 03:00`)이 이미 있으니, 이 변수만 넣으면 됩니다.
+
+---
+
+## 7. Lemon Squeezy (결제) — ✅ Task 5·6·7 완료, 진행 가능
 
 1. [lemonsqueezy.com](https://lemonsqueezy.com) 가입 → **Store** 생성
    - 국가: **Republic of Korea (ROK)** (정산 지원 국가)
@@ -142,12 +155,13 @@ Vercel → Settings → Environment Variables 에 직접 추가:
    - 이름: `ColorSketch — AI HD coloring page (2 styles)`
    - 가격: **$2.99** — `src/config.ts`의 `PRICE_USD`와 **반드시 일치**
    - 결제 유형: **Single payment** (구독 아님)
-   - "Redirect after purchase" 는 나중에 `/thanks` 로 설정 (Task 7)
+   - "Redirect after purchase": 비워둬도 됨. 코드(`api/checkout.ts`)가 체크아웃 생성 시
+     `https://<도메인>/thanks?order={주문id}`로 자동 지정함
 3. **Settings → API** → API key 발급
 4. **Settings → Webhooks → Add endpoint**
    - URL: `https://<배포주소>/api/webhook`
-   - Signing secret: 아무 긴 문자열 생성해서 저장 (아래 변수에 씀)
-   - 이벤트: **order_created**, **order_refunded** 체크
+   - Signing secret: 아무 긴 문자열 생성해서 저장 (아래 `LEMONSQUEEZY_WEBHOOK_SECRET`에 씀)
+   - 이벤트: **`order_created`**, **`order_refunded`** 만 체크 (구독 이벤트 불필요)
 5. **Test mode 켜기** (스토어 우상단 토글) — 실제 청구 없이 테스트 카드로 검증
 6. ⚠️ **$10 미만 상품 커스텀 요율**: LS 문서에 "$10 미만은 세일즈팀에 문의" 명시. **support@lemonsqueezy.com 에 문의** ("single payment product under $10, requesting custom rate")
 
@@ -177,17 +191,18 @@ Vercel → Settings → Environment Variables. **Production + Preview 둘 다** 
 | `LEMONSQUEEZY_API_KEY` | 7번 | 결제 불가 |
 | `LEMONSQUEEZY_STORE_ID` | 7번 | 결제 불가 |
 | `LEMONSQUEEZY_VARIANT_ID` | 7번 | 결제 불가 |
-| `LEMONSQUEEZY_WEBHOOK_SECRET` | 7번 | 웹훅 검증 실패 → 발급 안 됨 |
-| `RESEND_API_KEY` / `ADMIN_EMAIL` | 6번 | 실패 알림 메일 안 감 (앱은 정상) |
+| `LEMONSQUEEZY_WEBHOOK_SECRET` | 7번 | `/api/webhook` 503 → 결제돼도 발급 안 됨 |
+| `RESEND_API_KEY` / `RESEND_FROM` / `ADMIN_EMAIL` | 6번 | 발급·실패 메일 안 감 (앱은 정상, `/thanks`로 복구) |
+| `CRON_SECRET` | 6b번 | 7일 정리 작업이 무인증 노출 → **꼭 설정** |
 | `VITE_CHECKOUT_MODE` | 아래 참고 | 프로덕션은 자동으로 `disabled` |
 
 ### `VITE_CHECKOUT_MODE`
 
 | 단계 | 값 |
 |---|---|
-| 지금 (Task 4 체크포인트 배포) | **설정 안 함** 또는 `mock` (검토용). 실결제 코드가 없으므로 `live` 금지 |
-| Task 5~7 진행 중 | `mock` |
-| 모든 키 세팅 + §7 테스트 통과 후 | `live` |
+| 지금 (키 넣는 중, `FUNCTION_INVOCATION_FAILED` 재검증 전) | **설정 안 함**(= `disabled`) 또는 `mock`(검토용) |
+| API 함수가 정상 응답 확인된 뒤 | `mock` 유지하며 프리뷰·워터마크 눈으로 확인 |
+| 모든 키 세팅 + §7 테스트 9개 통과 후 | `live` |
 
 환경변수를 바꾸면 **재배포(Redeploy)** 해야 반영됩니다.
 
