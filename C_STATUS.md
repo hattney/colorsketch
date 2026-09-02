@@ -1,4 +1,4 @@
-# C단계 (결제 인프라) 진행 상태 — v1 (2026-09-02)
+# C단계 (결제 인프라) 진행 상태 — v2 (2026-09-02)
 
 > **이 문서의 목적.** C단계(= `PHASE2_GUIDE.md`) 코드 구현이 어디까지 됐고, `SETUP_CHECKLIST.md`가
 > 요구한 항목이 코드에 실제로 어떻게 반영됐으며, 검토자(페이블)가 무엇을 봐야 하는지.
@@ -10,17 +10,32 @@
 
 ## 0. 한 줄 요약
 
-**Task 1~7 코드 구현 완료. GitHub `hattney/colorsketch` `main`에 있음. Vercel 자동 배포 중.**
-첫 배포에서 `FUNCTION_INVOCATION_FAILED` 발견 → 핸들러 시그니처 수정(`a9a2505`) 후 **재검증 대기**.
-아직 실 키(Gemini·Upstash·Blob·Turnstile·Lemon Squeezy)는 안 들어갔고, `CHECKOUT_MODE`는 `disabled`.
+**Task 1~7 코드 구현 완료. GitHub `hattney/colorsketch` `main`. Vercel 프로덕션 배포됨.**
+첫 배포에서 `FUNCTION_INVOCATION_FAILED` (전 API 함수) → **원인 확정·수정 완료**. 현재 배포에서
+모든 함수가 키 없이도 정상 응답(`503`/`404`)하고, sharp 런타임 로드 확인됨. 무료 변환기·`/thanks`
+라우트 라이브 확인. 아직 실 키(Gemini·Upstash·Blob·Turnstile·Lemon Squeezy)는 없고 `CHECKOUT_MODE` `disabled`.
 
 | 커밋 | 내용 |
 |---|---|
-| `a9a2505` | **Vercel Node web handler 수정** — `export default` → `export async function POST/GET` |
+| `8ae5e1c` | 임시 진단 엔드포인트 제거 |
+| `9008191` | **`loadOrder`가 Redis 미설정 시 null 반환** (`/api/download` 500 → 404) |
+| `5b006c1` | **★ 진짜 원인 수정** — `api/**` 상대 import에 `.js` 확장자 추가 (Node ESM 필수) |
+| `73e5429` | (임시) `/api/diag` — 어느 모듈이 터지는지 격리 |
+| `abc0ef2` | (헛발) ESM 전용 `nanoid` 제거 + 인라인화 — 원인 아니었으나 의존성 줄여 유지 |
+| `a9a2505` | (헛발일 가능성) `export default` → `export function POST/GET` — 정상 패턴이라 유지 |
+| `2ba0256` | 이 문서(v1) + `SETUP_CHECKLIST`/`START_HERE` 갱신 |
 | `d5eb66f` | Task 7 — `/api/download` + `/thanks` + 7일 blob 스윕 |
 | `5bd02af` | Task 6 — `/api/webhook` + 발급 |
 | `2959be8` | Task 5 — `/api/checkout` + Lemon Squeezy |
 | `cab7d37` | Task 1~4 — 인프라 유틸 + 캐시/레이트리밋 + 워터마크/주문생성 + Turnstile |
+
+### 이번에 배운 것 (페이블 주의)
+
+- **이 프로젝트는 `package.json`에 `"type": "module"`.** Vercel은 `api/**` 함수를 **네이티브 ESM**으로
+  빌드하고, Node ESM은 상대경로 import에 **`.js` 확장자를 강제**한다. `tsc --noEmit`·`vite build`는
+  확장자 없어도 통과하므로 **로컬 검증만으론 안 잡힌다.** 새 `api/` 파일은 반드시 `from './x.js'` 형태로.
+  (`api/cron/cleanup.ts`만 상대 import가 없어서 유일하게 살아 있었다 — 디버깅의 결정적 단서.)
+- `nanoid` 같은 ESM 전용 패키지도 잠재 위험. 지금은 `api/`에서 npm 의존성이 `@vercel/blob`·`sharp` 둘뿐.
 
 ---
 
@@ -139,30 +154,33 @@ created → previewed → checkout_pending → paid → delivered
 | **발급 재시도 구동** | 명시 안 됨 | `/api/download`가 `paid` 상태 볼 때 락 걸고 `deliverOrder` 재호출 | LS 재시도가 3회 전에 멈춰도 `/thanks` 폴링이 이어감 |
 | **7일 Blob 삭제** | "보존 7일" (메커니즘 없음) | `api/cron/cleanup.ts` + `vercel.json` cron (매일) | Vercel Blob은 TTL 없음. Terms §8 약속을 지키려면 필수 |
 | **레이트리밋 카운트** | "IP당 3회/24h, 성공 시" | + `claimFreshInput`: 같은 (IP,이미지,피사체) 재요청은 카운트 0 (캐시로 응답) | 탭 닫고 다시 열기 벌주지 않음 |
-| **핸들러 시그니처** | (없음) | `export async function POST/GET` (Vercel Node web handler). `export default`는 `(req,res)`로 호출돼 크래시 | `a9a2505` — **첫 배포에서 발견·수정, 재검증 대기** |
+| **핸들러 시그니처** | (없음) | `export async function POST/GET` (Vercel Node web handler) | `a9a2505` — `export default`도 됐을 수 있으나 named export가 정상 패턴 |
+| **상대 import 확장자** | (없음) | `api/**` 전부 `from './x.js'` | `5b006c1` — Node ESM 필수. 이게 첫 배포 크래시의 진짜 원인 |
 
 ---
 
 ## 5. 미해결 / 리스크 (페이블 검토 최우선)
 
-### 🔴 검증 안 됨 — 배포+키 있어야 확인 가능
+### ✅ 해결됨 (v1 → v2)
 
-1. **`a9a2505` 핸들러 수정이 실제로 `FUNCTION_INVOCATION_FAILED`를 고쳤는지.**
-   `d5eb66f` 배포에서 API 4개 전부 500 `FUNCTION_INVOCATION_FAILED`. 원인을 "web handler를
-   `export default`로 내보내면 Vercel Node가 `(req,res)`로 호출 → `req.json()`에서 크래시"로
-   **추정**하고 named export로 바꿈. **런타임 로그로 원인 미확인.** 새 배포에서 `/api/download?order=x`가
-   JSON(`{"status":"not_found"}` 404)을 주면 고쳐진 것. 여전히 500이면 로그를 봐야 함.
-2. **Gemini 응답 파싱** — `extractImage`/`refusalReason`이 현재 모델 응답 포맷과 맞는지 (§32 코드,
+- **`FUNCTION_INVOCATION_FAILED` (전 API 함수).** 원인 = `api/**` 상대 import에 `.js` 확장자 없음
+  (Node ESM 필수). `5b006c1`에서 전부 추가. 임시 `/api/diag`로 격리 확인 후 `8ae5e1c`에서 제거.
+  후속으로 `loadOrder`가 Redis 미설정 시 throw하던 것도 `9008191`에서 null 반환으로 수정.
+  현재 프로덕션: 전 함수가 키 없이 `503`/`404` 정상 응답, `/api/diag` 시절 sharp 포함 모든 모듈 로드 `ok` 확인.
+
+### 🔴 검증 안 됨 — 키 넣어야 확인 가능
+
+1. **Gemini 응답 파싱** — `extractImage`/`refusalReason`이 현재 모델 응답 포맷과 맞는지 (§32 코드,
    실호출 미검증). `AI_MODEL_ID` 실제 이름 확인 필요.
-3. **sharp 런타임** — 빌드는 통과. 실제 `watermarkedPreview` 호출 시 Vercel Node에서 sharp 바이너리
-   로드되는지. 워터마크 **모양**(불투명도 14%, 대각선 타일)은 실결과물로 눈 확인 필요 — `image.ts` 상수로 조절.
-4. **Lemon Squeezy Checkout API 페이로드** (`api/checkout.ts`) — JSON:API 형식, `relationships.store`/
+2. **sharp 실행 결과** — 모듈 로드는 확인됨. 실제 `watermarkedPreview`/`upscaleToA4` 출력물,
+   특히 워터마크 **모양**(불투명도 14%, 대각선 타일)은 실 AI 결과로 눈 확인 필요 — `image.ts` 상수로 조절.
+3. **Lemon Squeezy Checkout API 페이로드** (`api/checkout.ts`) — JSON:API 형식, `relationships.store`/
    `variant` id를 문자열로 넣음. 실 스토어로 미검증.
-5. **LS 웹훅 페이로드 필드명** (`api/webhook.ts`) — `meta.event_name`, `meta.custom_data.order_id`,
+4. **LS 웹훅 페이로드 필드명** (`api/webhook.ts`) — `meta.event_name`, `meta.custom_data.order_id`,
    `data.id`, `data.attributes.user_email`. LS 문서 기준, 실 전송 미검증.
-6. **`X-Signature` 검증** — hex HMAC-SHA256 of raw body. 헤더 케이싱/인코딩 첫 웹훅에서 확인 (§7 테스트 #6).
-7. **`?download=1`** — Vercel Blob 강제 다운로드 쿼리. 실제 동작·파일명 확인.
-8. **`redirect_url` origin** — `req.headers.get('origin') || host`로 구성. Vercel 프록시 뒤에서 공개
+5. **`X-Signature` 검증** — hex HMAC-SHA256 of raw body. 헤더 케이싱/인코딩 첫 웹훅에서 확인 (§7 테스트 #6).
+6. **`?download=1`** — Vercel Blob 강제 다운로드 쿼리. 실제 동작·파일명 확인.
+7. **`redirect_url` origin** — `req.headers.get('origin') || host`로 구성. Vercel 프록시 뒤에서 공개
    도메인 맞는지.
 
 ### 🟡 설계상 알아둘 것
@@ -225,31 +243,38 @@ created → previewed → checkout_pending → paid → delivered
 
 ```bash
 npm install
-npm run lint          # tsc --noEmit — 통과해야 함
+npm run lint          # tsc --noEmit — 통과해야 함 (단, 확장자 누락은 못 잡는다 — §0 참고)
 npm run build         # dist/ — 통과해야 함
-npm run dev            # mock 모드 퍼널만 로컬 확인 가능 (api/ 라우트 없음)
+npm run dev           # mock 모드 퍼널만 로컬 확인 가능 (vite dev엔 api/ 라우트 없음)
 ```
 
-`api/` 실검증은 Vercel Preview 배포 + `SETUP_CHECKLIST.md` 2~7번 키 필요.
+- **라이브 API 스모크**: `https://colorsketch-auri12.vercel.app/api/*` 에 Protection Bypass
+  토큰(현희님께 요청) 붙여 호출. 키 없이도 `503`/`404`가 정상.
+- **`api/` 로직 실검증**은 `SETUP_CHECKLIST.md` 2~7번 키 등록 + `PHASE2_GUIDE.md` §7 테스트.
+- **새 `api/` 파일을 만들면 상대 import에 반드시 `.js`** (lint·build는 통과시켜도 런타임에서 터진다).
 
 ---
 
 ## 7. 다음 작업 (§8)
 
-1. **`a9a2505` 배포 재검증** — 새 배포 URL에서 `/api/download?order=x` → 404 JSON 나오는지.
-   여전히 `FUNCTION_INVOCATION_FAILED`면 Vercel 런타임 로그 확보 → 원인 재분석.
-2. `SETUP_CHECKLIST.md`에 §3의 신규 항목 4개 반영.
-3. 현희님이 체크리스트 2~7번 진행 → Vercel 환경변수 등록.
-4. `VITE_CHECKOUT_MODE=live` (또는 Preview에서만) → `PHASE2_GUIDE.md` §7 테스트 9개.
-5. (선택) `api/_lib/order.ts`·`deliver.ts` 순수 함수에 vitest 최소 테스트.
-6. 통과 후: `index.html`의 `noindex` 제거, LS Test mode 해제, 도메인 연결 (`DEPLOY.md` 런칭 체크).
+1. ~~배포 크래시 수정~~ ✅ 완료 (`5b006c1`/`9008191`)
+2. ~~`SETUP_CHECKLIST.md` 신규 항목 반영~~ ✅ 완료 (CRON_SECRET, RESEND_FROM, LS 갱신)
+3. **현희님이 `SETUP_CHECKLIST.md` 2~7번 진행 → Vercel 환경변수 등록** ← 지금 여기
+   - 2 Upstash / 3 Blob / 4 Gemini / 5 Turnstile / 6 Resend / 6b CRON_SECRET / 7 Lemon Squeezy
+4. 키 넣고 재배포 → 실호출 검증: AI 프리뷰 실제 결과 + 워터마크 모양, 캐시 히트 헤더, 429
+5. `VITE_CHECKOUT_MODE=live` (Preview에서만 먼저) + LS Test mode → `PHASE2_GUIDE.md` §7 테스트 9개
+6. (선택) `api/_lib/order.ts`·`deliver.ts` 순수 함수 vitest 최소 테스트
+7. 통과 후: `index.html`의 `noindex` 제거, LS Test mode 해제, 도메인 연결 (`DEPLOY.md` 런칭 체크)
 
 ---
 
 ## 8. 배포 정보
 
-- GitHub: `https://github.com/hattney/colorsketch` (`main`)
-- Vercel: 프로젝트 연결됨, `main` 푸시 시 자동 배포. 리전 `iad1`.
+- GitHub: `https://github.com/hattney/colorsketch` (`main`, 최신 `8ae5e1c`)
+- Vercel: 프로젝트 연결됨(`auri12` 팀), `main` 푸시 시 자동 배포. 리전 `iad1`. 빌드·배포 정상.
+- 프로덕션 URL: `https://colorsketch-auri12.vercel.app`
 - Deployment Protection: **Standard Protection 켜짐**. 검토용 접근은 Vercel 팀 로그인 또는
   Protection Bypass 토큰(`Settings → Deployment Protection → Protection Bypass for Automation`).
-- 현재 실 키 0개. `CHECKOUT_MODE` 미설정(= `disabled`).
+- 현재 실 키 0개. `CHECKOUT_MODE` 미설정(= `disabled`). 무료 변환기·랜딩·`/thanks` 라이브 정상.
+- 함수 상태: `/api/{ai-preview,checkout,webhook,download}` → 키 없으면 `503`, `/api/download` 미존재 주문 → `404`.
+  `/api/cron/cleanup` → Blob 없으면 `503`. 모두 크래시 없음.
