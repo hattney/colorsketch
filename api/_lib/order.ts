@@ -15,9 +15,9 @@
  * regenerate or abandon checkout and come back; the paid side of the graph never loops back
  * to an unpaid state.
  */
-import type { StyleVariant, SubjectModule } from '../../src/utils/prompt';
-import { redisGetJSON, redisSetJSON } from './redis';
-import { newOrderId } from './ids';
+import type { StyleVariant, SubjectModule } from '../../src/utils/prompt.js';
+import { redisGetJSON, redisSetJSON } from './redis.js';
+import { newOrderId } from './ids.js';
 
 export type OrderStatus =
   | 'created'

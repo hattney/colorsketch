@@ -1,15 +1,15 @@
-import { CONTACT_EMAIL } from '../src/config';
-import { deliverOrder } from './_lib/deliver';
-import { loadOrder } from './_lib/order';
-import { redisAcquireLock, redisReleaseLock } from './_lib/redis';
-import type { StyleVariant } from '../src/utils/prompt';
+import { CONTACT_EMAIL } from '../src/config.js';
+import { deliverOrder } from './_lib/deliver.js';
+import { loadOrder } from './_lib/order.js';
+import { redisAcquireLock, redisReleaseLock } from './_lib/redis.js';
+import type { StyleVariant } from '../src/utils/prompt.js';
 import {
   DOWNLOAD_LIMIT,
   DOWNLOAD_WINDOW_SECONDS,
   checkRateLimit,
   clientIp,
   consumeRateLimit,
-} from './_lib/ratelimit';
+} from './_lib/ratelimit.js';
 
 /**
  * GET /api/download?order={orderId}&variant={simple|detailed} — the gate on the paid files

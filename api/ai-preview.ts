@@ -1,11 +1,11 @@
-import { buildPrompt, sanitizeSubjectWord, type StyleVariant, type SubjectModule } from '../src/utils/prompt';
-import { getCachedVariant, putCachedVariant } from './_lib/cache';
-import { newOrderId, sha256HexOfBase64 } from './_lib/ids';
-import { watermarkedPreview } from './_lib/image';
-import { blobConfigured, orderImagePath, putBytes } from './_lib/blob';
-import { createOrder, type VariantAsset } from './_lib/order';
-import { RedisNotConfigured, redisConfigured } from './_lib/redis';
-import { verifyTurnstile } from './_lib/turnstile';
+import { buildPrompt, sanitizeSubjectWord, type StyleVariant, type SubjectModule } from '../src/utils/prompt.js';
+import { getCachedVariant, putCachedVariant } from './_lib/cache.js';
+import { newOrderId, sha256HexOfBase64 } from './_lib/ids.js';
+import { watermarkedPreview } from './_lib/image.js';
+import { blobConfigured, orderImagePath, putBytes } from './_lib/blob.js';
+import { createOrder, type VariantAsset } from './_lib/order.js';
+import { RedisNotConfigured, redisConfigured } from './_lib/redis.js';
+import { verifyTurnstile } from './_lib/turnstile.js';
 import {
   PREVIEW_LIMIT,
   PREVIEW_WINDOW_SECONDS,
@@ -13,7 +13,7 @@ import {
   claimFreshInput,
   clientIp,
   consumeRateLimit,
-} from './_lib/ratelimit';
+} from './_lib/ratelimit.js';
 
 /**
  * POST /api/ai-preview — the real AI retouch (CONTENT_UPDATE.md §15, §32).

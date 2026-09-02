@@ -9,9 +9,9 @@
  * The bytes go to Blob (a 1280px image does not belong in a Redis value); Redis holds only
  * the URL. Both expire at 7 days, matching the order TTL and the Terms §8 deletion window.
  */
-import type { StyleVariant, SubjectModule } from '../../src/utils/prompt';
-import { cacheImagePath, putBytes } from './blob';
-import { redisGetJSON, redisSetJSON } from './redis';
+import type { StyleVariant, SubjectModule } from '../../src/utils/prompt.js';
+import { cacheImagePath, putBytes } from './blob.js';
+import { redisGetJSON, redisSetJSON } from './redis.js';
 
 const CACHE_TTL_SECONDS = 7 * 24 * 60 * 60;
 

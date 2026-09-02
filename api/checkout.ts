@@ -1,5 +1,5 @@
-import { applyTransition, loadOrder, saveOrder } from './_lib/order';
-import { redisConfigured } from './_lib/redis';
+import { applyTransition, loadOrder, saveOrder } from './_lib/order.js';
+import { redisConfigured } from './_lib/redis.js';
 
 /**
  * POST /api/checkout — open a Lemon Squeezy checkout for an existing order (PHASE2_GUIDE.md §3-2).

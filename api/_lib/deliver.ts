@@ -9,11 +9,11 @@
  * is saved after every variant. Both a Lemon Squeezy webhook retry and a `/api/download` poll
  * can safely re-enter this, and a timeout mid-run picks up where it left off.
  */
-import { StyleVariant } from '../../src/utils/prompt';
-import { orderImagePath, putBytes } from './blob';
-import { sendAdminFailureAlert, sendBuyerDeliveryEmail, sendBuyerFailureApology } from './email';
-import { applyTransition, loadOrder, saveOrder, type OrderRecord } from './order';
-import { upscaleToA4 } from './image';
+import { StyleVariant } from '../../src/utils/prompt.js';
+import { orderImagePath, putBytes } from './blob.js';
+import { sendAdminFailureAlert, sendBuyerDeliveryEmail, sendBuyerFailureApology } from './email.js';
+import { applyTransition, loadOrder, saveOrder, type OrderRecord } from './order.js';
+import { upscaleToA4 } from './image.js';
 
 const VARIANTS: StyleVariant[] = ['simple', 'detailed'];
 const MAX_DELIVERY_ATTEMPTS = 3;

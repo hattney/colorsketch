@@ -9,8 +9,8 @@
  * Resend only delivers to the account owner's own address, which is enough for the admin
  * alert during testing but not for buyer mail.
  */
-import { CONTACT_EMAIL } from '../../src/config';
-import type { OrderRecord } from './order';
+import { CONTACT_EMAIL } from '../../src/config.js';
+import type { OrderRecord } from './order.js';
 
 const API_KEY = process.env.RESEND_API_KEY;
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL;

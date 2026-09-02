@@ -10,18 +10,18 @@ export async function GET(): Promise<Response> {
   const results: Record<string, string> = {};
   const tries: Array<[string, () => Promise<unknown>]> = [
     ['runtime-node-version', async () => process.version],
-    ['_lib/redis', () => import('./_lib/redis')],
-    ['_lib/ids', () => import('./_lib/ids')],
-    ['_lib/order', () => import('./_lib/order')],
-    ['_lib/blob', () => import('./_lib/blob')],
-    ['_lib/cache', () => import('./_lib/cache')],
-    ['_lib/ratelimit', () => import('./_lib/ratelimit')],
-    ['_lib/turnstile', () => import('./_lib/turnstile')],
-    ['_lib/image', () => import('./_lib/image')],
-    ['_lib/deliver', () => import('./_lib/deliver')],
-    ['_lib/email', () => import('./_lib/email')],
-    ['src/utils/prompt', () => import('../src/utils/prompt')],
-    ['src/config', () => import('../src/config')],
+    ['_lib/redis', () => import('./_lib/redis.js')],
+    ['_lib/ids', () => import('./_lib/ids.js')],
+    ['_lib/order', () => import('./_lib/order.js')],
+    ['_lib/blob', () => import('./_lib/blob.js')],
+    ['_lib/cache', () => import('./_lib/cache.js')],
+    ['_lib/ratelimit', () => import('./_lib/ratelimit.js')],
+    ['_lib/turnstile', () => import('./_lib/turnstile.js')],
+    ['_lib/image', () => import('./_lib/image.js')],
+    ['_lib/deliver', () => import('./_lib/deliver.js')],
+    ['_lib/email', () => import('./_lib/email.js')],
+    ['src/utils/prompt', () => import('../src/utils/prompt.js')],
+    ['src/config', () => import('../src/config.js')],
   ];
   for (const [name, fn] of tries) {
     try {

@@ -1,13 +1,13 @@
 import crypto from 'node:crypto';
-import { deleteImages } from './_lib/blob';
-import { deliverOrder } from './_lib/deliver';
+import { deleteImages } from './_lib/blob.js';
+import { deliverOrder } from './_lib/deliver.js';
 import {
   applyTransition,
   isWebhookProcessed,
   loadOrder,
   markWebhookProcessed,
   saveOrder,
-} from './_lib/order';
+} from './_lib/order.js';
 
 /**
  * POST /api/webhook — Lemon Squeezy events (PHASE2_GUIDE.md §3-3, §(B)).

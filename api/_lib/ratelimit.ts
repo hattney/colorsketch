@@ -15,7 +15,7 @@
  * Degrades to "no limit" when Redis is not configured, so `/api/ai-preview` keeps working on a
  * deployment that has the model key but not Upstash yet.
  */
-import { RedisNotConfigured, redisCommand, redisIncrementWithWindow, redisTtlMs } from './redis';
+import { RedisNotConfigured, redisCommand, redisIncrementWithWindow, redisTtlMs } from './redis.js';
 
 export const PREVIEW_LIMIT = 3;
 export const PREVIEW_WINDOW_SECONDS = 24 * 60 * 60;

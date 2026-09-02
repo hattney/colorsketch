@@ -19,7 +19,7 @@
  * Env: `BLOB_READ_WRITE_TOKEN` — read automatically by `@vercel/blob`, server-only.
  */
 import { del, put } from '@vercel/blob';
-import type { StyleVariant } from '../../src/utils/prompt';
+import type { StyleVariant } from '../../src/utils/prompt.js';
 
 export function blobConfigured(): boolean {
   return Boolean(process.env.BLOB_READ_WRITE_TOKEN);
