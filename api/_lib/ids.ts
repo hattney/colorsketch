@@ -2,14 +2,23 @@
  * Identifiers (PHASE2_GUIDE.md §2, §(B)).
  *
  * `orderId` is the only credential the download flow has — anyone holding it can fetch the
- * paid file — so it is a 21-char nanoid (~126 bits), never a sequence. `imageHash` is the
- * SHA-256 of the uploaded bytes and is the cache key: the same photo with the same subject
- * module must not pay for a second model call.
+ * paid file — so it is a 21-char URL-safe id (~126 bits), never a sequence. `imageHash` is
+ * the SHA-256 of the uploaded bytes and is the cache key.
+ *
+ * The id generator is inlined (it is nanoid's algorithm) rather than pulled from the `nanoid`
+ * package: nanoid v6 is ESM-only and Vercel's function bundler `require()`s it as CJS, which
+ * crashes the whole function with ERR_REQUIRE_ESM. `crypto.getRandomValues` is a global on
+ * both the Node and Edge runtimes.
  */
-import { nanoid } from 'nanoid';
 
-export function newOrderId(): string {
-  return nanoid(21);
+// nanoid's default URL-safe alphabet: A-Za-z0-9 plus `_` and `-`, 64 symbols.
+const ALPHABET = 'useandom-26T198340PX75pxJACKVERYMINDBUSHWOLF_GQZbfghjklqvwyzrict';
+
+export function newOrderId(size = 21): string {
+  const bytes = crypto.getRandomValues(new Uint8Array(size));
+  let id = '';
+  for (let i = 0; i < size; i++) id += ALPHABET[bytes[i] & 63];
+  return id;
 }
 
 /** Lowercase hex SHA-256. Accepts raw bytes or a string. */
