@@ -27,12 +27,21 @@ export function blobConfigured(): boolean {
 
 const SEVEN_DAYS_SECONDS = 7 * 24 * 60 * 60;
 
+/** The hi-res file is what the buyer downloads, so its name is the download filename. */
+const DOWNLOAD_NAME: Record<StyleVariant, string> = {
+  simple: 'ColorSketch-Simple-HD',
+  detailed: 'ColorSketch-Detailed-HD',
+};
+
 export const orderImagePath = (
   orderId: string,
   variant: StyleVariant,
   kind: 'original' | 'hires',
   ext = 'png',
-): string => `orders/${orderId}/${variant}-${kind}.${ext}`;
+): string =>
+  kind === 'hires'
+    ? `orders/${orderId}/${DOWNLOAD_NAME[variant]}.${ext}`
+    : `orders/${orderId}/${variant}-original.${ext}`;
 
 export const cacheImagePath = (
   imageHash: string,
@@ -42,20 +51,26 @@ export const cacheImagePath = (
   ext = 'png',
 ): string => `cache/${imageHash}/${module}/${otherKey}/${variant}.${ext}`;
 
-/** Stores bytes at `pathname` (plus a random suffix) and returns the public URL. */
+interface PutOpts {
+  contentType?: string;
+  /** Cache blobs keep it (each write is a new key); order blobs drop it (the orderId already
+   *  makes the path unguessable) so the download filename stays clean and a retry overwrites. */
+  addRandomSuffix?: boolean;
+}
+
+/** Stores bytes at `pathname` and returns the public URL. */
 export async function putBytes(
   pathname: string,
   bytes: Uint8Array | ArrayBuffer | Buffer,
-  contentType = 'image/png',
+  opts: PutOpts = {},
 ): Promise<string> {
   const body =
     bytes instanceof Uint8Array || Buffer.isBuffer(bytes) ? bytes : new Uint8Array(bytes);
   const { url } = await put(pathname, body, {
     access: 'public',
-    contentType,
-    addRandomSuffix: true,
-    // A given URL's bytes never change (a fresh write gets a fresh suffix), so a CDN can hold
-    // them for the blob's whole 7-day life.
+    contentType: opts.contentType ?? 'image/png',
+    addRandomSuffix: opts.addRandomSuffix ?? true,
+    allowOverwrite: true,
     cacheControlMaxAge: SEVEN_DAYS_SECONDS,
   });
   return url;

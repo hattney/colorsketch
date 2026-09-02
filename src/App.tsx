@@ -7,8 +7,10 @@ import Hero from './components/Hero';
 import Samples from './components/Samples';
 import Steps from './components/Steps';
 import Uploader from './components/Uploader';
+import OrderRecoveryBanner from './components/OrderRecoveryBanner';
 import RefundPolicy from './pages/RefundPolicy';
 import Terms from './pages/Terms';
+import Thanks from './pages/Thanks';
 import { STAGE_BAR, type Stage } from './utils/aiFlow';
 import { usePath } from './utils/router';
 
@@ -34,6 +36,7 @@ function Landing() {
 
   return (
     <>
+      <OrderRecoveryBanner />
       <Hero />
       <Steps />
 
@@ -78,6 +81,7 @@ export default function App() {
   let page: React.ReactNode;
   if (path === '/terms') page = <Terms />;
   else if (path === '/refund-policy') page = <RefundPolicy />;
+  else if (path === '/thanks') page = <Thanks />;
   else page = <Landing />;
 
   return (

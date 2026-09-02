@@ -58,7 +58,7 @@ export async function putCachedVariant(
   const url = await putBytes(
     cacheImagePath(imageHash, module, otherKey(otherWord), variant, ext),
     bytes,
-    contentType,
+    { contentType, addRandomSuffix: true },
   );
   const value: CachedVariant = { originalUrl: url, contentType };
   await redisSetJSON(

@@ -313,11 +313,10 @@ export default async function handler(req: Request): Promise<Response> {
       const variants: Partial<Record<StyleVariant, VariantAsset>> = {};
       for (const o of originals) {
         const ext = o.contentType.includes('jpeg') ? 'jpg' : 'png';
-        const url = await putBytes(
-          orderImagePath(oid, o.variant, 'original', ext),
-          o.bytes,
-          o.contentType,
-        );
+        const url = await putBytes(orderImagePath(oid, o.variant, 'original', ext), o.bytes, {
+          contentType: o.contentType,
+          addRandomSuffix: false,
+        });
         variants[o.variant] = { originalUrl: url };
       }
       await createOrder({

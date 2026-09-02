@@ -22,6 +22,7 @@ import {
   type Point,
 } from '../utils/pipeline';
 import type { StyleVariant, SubjectModule } from '../utils/prompt';
+import { rememberOrder } from '../utils/orderRecovery';
 import AiDemoPanel from './AiDemoPanel';
 import AiHdPanel from './AiHdPanel';
 
@@ -345,6 +346,8 @@ export default function Editor({ image, onReset, stage, onStage }: EditorProps) 
       );
       setDemoPreviews(previews);
       setOrderId(newOrderId ?? null);
+      // Leave a breadcrumb so a buyer who closes the tab after paying can be brought back.
+      if (newOrderId) rememberOrder(newOrderId);
       setUsedRealAi(true);
     } catch (e) {
       if (!(e instanceof AiPreviewUnavailable)) {

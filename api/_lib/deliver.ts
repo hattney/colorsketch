@@ -57,7 +57,10 @@ export async function deliverOrder(orderId: string, origin: string): Promise<voi
     try {
       const src = await fetchBytes(asset.originalUrl);
       const hires = await upscaleToA4(src);
-      const url = await putBytes(orderImagePath(orderId, variant, 'hires'), hires, 'image/png');
+      const url = await putBytes(orderImagePath(orderId, variant, 'hires'), hires, {
+        contentType: 'image/png',
+        addRandomSuffix: false,
+      });
       order = await saveOrder({
         ...order,
         variants: { ...order.variants, [variant]: { ...asset, hiResUrl: url } },

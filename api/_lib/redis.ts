@@ -117,3 +117,33 @@ export async function redisTtlMs(key: string): Promise<number | null> {
   const pttl = await redisCommand<number>(['PTTL', key]);
   return pttl >= 0 ? pttl : null;
 }
+
+/**
+ * Best-effort mutex. Returns true if the lock was taken (caller must release), false if
+ * someone else holds it. The TTL is a safety valve so a crashed holder cannot wedge it.
+ * Degrades to "always acquired" without Redis.
+ */
+export async function redisAcquireLock(key: string, ttlSeconds: number): Promise<boolean> {
+  try {
+    const res = await redisCommand<string | null>([
+      'SET',
+      `lock:${key}`,
+      '1',
+      'EX',
+      Math.floor(ttlSeconds),
+      'NX',
+    ]);
+    return res === 'OK';
+  } catch (e) {
+    if (e instanceof RedisNotConfigured) return true;
+    throw e;
+  }
+}
+
+export async function redisReleaseLock(key: string): Promise<void> {
+  try {
+    await redisCommand(['DEL', `lock:${key}`]);
+  } catch (e) {
+    if (!(e instanceof RedisNotConfigured)) throw e;
+  }
+}
