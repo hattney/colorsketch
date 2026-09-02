@@ -26,7 +26,7 @@ import {
  *   checkout_pending      → processing (payment in flight, webhook not in yet)
  *   previewed / created   → not_paid ; refunded → 410 ; unknown → 404
  */
-export const config = { runtime: 'nodejs', maxDuration: 60 };
+export const maxDuration = 60;
 
 const json = (body: unknown, status: number) =>
   new Response(JSON.stringify(body), {
@@ -36,9 +36,7 @@ const json = (body: unknown, status: number) =>
 
 const VARIANTS: StyleVariant[] = ['simple', 'detailed'];
 
-export default async function handler(req: Request): Promise<Response> {
-  if (req.method !== 'GET') return json({ error: 'Method not allowed' }, 405);
-
+export async function GET(req: Request): Promise<Response> {
   const url = new URL(req.url);
   const orderId = url.searchParams.get('order') ?? '';
   const variantParam = url.searchParams.get('variant');

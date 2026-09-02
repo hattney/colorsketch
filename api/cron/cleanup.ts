@@ -10,11 +10,11 @@ import { del, list } from '@vercel/blob';
  * Scheduled from `vercel.json` (`crons`). Vercel sends `Authorization: Bearer $CRON_SECRET`
  * when that env var is set; set it so the endpoint cannot be triggered by anyone.
  */
-export const config = { runtime: 'nodejs', maxDuration: 60 };
+export const maxDuration = 60;
 
 const MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
-export default async function handler(req: Request): Promise<Response> {
+export async function GET(req: Request): Promise<Response> {
   const secret = process.env.CRON_SECRET;
   if (secret && req.headers.get('authorization') !== `Bearer ${secret}`) {
     return new Response('Unauthorized', { status: 401 });

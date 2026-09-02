@@ -36,11 +36,11 @@ import {
  *   5. the watermark-free originals are stored on an order record; the paid flow issues from
  *      those and never calls the model again (§(A)).
  *
- * Runs under the Node.js runtime, not Edge: step 4 uses `sharp` (see `_lib/image.ts`). The
- * handler keeps the Web `Request → Response` signature, which Vercel's Node runtime supports —
- * confirm on the first deploy, since this project has not been deployed yet.
+ * Runs under the Node.js runtime (the default), not Edge: step 4 uses `sharp`. Vercel's Node
+ * runtime only exposes the Web `Request → Response` signature through method-named exports
+ * (`POST` here), not a default export — a default export is called `(req, res)` and crashes.
  */
-export const config = { runtime: 'nodejs', maxDuration: 60 };
+export const maxDuration = 60;
 
 const API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
 
@@ -222,9 +222,7 @@ async function renderVariant(
   return { ok: true, bytes, contentType: image.mimeType, fromCache: false };
 }
 
-export default async function handler(req: Request): Promise<Response> {
-  if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
-
+export async function POST(req: Request): Promise<Response> {
   const apiKey = process.env.GEMINI_API_KEY;
   if (!apiKey) return json({ error: 'AI retouch is not configured on this deployment.' }, 503);
 

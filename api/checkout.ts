@@ -11,16 +11,14 @@ import { redisConfigured } from './_lib/redis';
  *
  * This endpoint does NOT mark anything paid. Only the webhook does that.
  */
-export const config = { runtime: 'nodejs' };
+export const maxDuration = 30;
 
 const LS_CHECKOUT_API = 'https://api.lemonsqueezy.com/v1/checkouts';
 
 const json = (body: unknown, status: number) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
 
-export default async function handler(req: Request): Promise<Response> {
-  if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
-
+export async function POST(req: Request): Promise<Response> {
   const apiKey = process.env.LEMONSQUEEZY_API_KEY;
   const storeId = process.env.LEMONSQUEEZY_STORE_ID;
   const variantId = process.env.LEMONSQUEEZY_VARIANT_ID;

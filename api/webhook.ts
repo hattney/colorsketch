@@ -21,7 +21,7 @@ import {
  *     change. Delivery itself is separately idempotent (see `deliverOrder`), so a retry after
  *     a mid-fulfilment timeout still completes the order.
  */
-export const config = { runtime: 'nodejs', maxDuration: 60 };
+export const maxDuration = 60;
 
 const json = (body: unknown, status: number) =>
   new Response(JSON.stringify(body), { status, headers: { 'content-type': 'application/json' } });
@@ -39,9 +39,7 @@ interface LsWebhook {
   data?: { id?: string | number; attributes?: Record<string, unknown> };
 }
 
-export default async function handler(req: Request): Promise<Response> {
-  if (req.method !== 'POST') return json({ error: 'Method not allowed' }, 405);
-
+export async function POST(req: Request): Promise<Response> {
   const secret = process.env.LEMONSQUEEZY_WEBHOOK_SECRET;
   if (!secret) return json({ error: 'Webhook not configured.' }, 503);
 
