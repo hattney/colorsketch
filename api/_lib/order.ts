@@ -64,7 +64,9 @@ export const ORDER_TTL_SECONDS = 7 * 24 * 60 * 60;
 
 const NEXT: Record<OrderStatus, OrderStatus[]> = {
   created: ['previewed', 'failed'],
-  previewed: ['previewed', 'checkout_pending'],
+  // `previewed → paid` is allowed too: the paid webhook is authoritative even if our
+  // `/api/checkout` write of `checkout_pending` never landed.
+  previewed: ['previewed', 'checkout_pending', 'paid'],
   checkout_pending: ['checkout_pending', 'previewed', 'paid'],
   paid: ['paid', 'delivered', 'failed'],
   delivered: ['delivered'],
