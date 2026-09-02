@@ -408,17 +408,21 @@ export default function Editor({ image, onReset, stage, onStage }: EditorProps) 
     setIsCheckingOut(true);
     setCheckoutError(null);
     try {
-      const ok = await startCheckout();
-      if (!ok) {
-        setCheckoutError('Checkout is not connected yet. Nothing was charged.');
-        return;
+      const outcome = await startCheckout(orderId);
+      if (outcome.status === 'paid') {
+        // mock: unlock the HD stage in place (no server round trip to wait on).
+        setPaid(true);
+        setHdPreviews(null);
+        setAiImage(null);
+        setAiVariant(null);
+        setAiPaths([]);
+        onStage('ai-hd');
+      } else if (outcome.status === 'unavailable') {
+        setCheckoutError('Checkout is not open yet. Nothing was charged.');
+      } else if (outcome.status === 'error') {
+        setCheckoutError(outcome.message);
       }
-      setPaid(true);
-      setHdPreviews(null);
-      setAiImage(null);
-      setAiVariant(null);
-      setAiPaths([]);
-      onStage('ai-hd');
+      // 'redirecting' — the browser is already leaving for Lemon Squeezy / /thanks.
     } finally {
       setIsCheckingOut(false);
     }
