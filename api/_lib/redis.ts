@@ -8,10 +8,12 @@
  * stubbed to test them.
  *
  * Env: `UPSTASH_REDIS_REST_URL`, `UPSTASH_REDIS_REST_TOKEN` — both server-only, no `VITE_`.
+ * The Vercel Marketplace install of Upstash writes `KV_REST_API_URL`/`KV_REST_API_TOKEN`
+ * instead (legacy Vercel KV names), so those are accepted as fallbacks.
  */
 
-const REST_URL = process.env.UPSTASH_REDIS_REST_URL;
-const REST_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
+const REST_URL = process.env.UPSTASH_REDIS_REST_URL || process.env.KV_REST_API_URL;
+const REST_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN || process.env.KV_REST_API_TOKEN;
 
 /** Thrown when the deployment has no Redis wired up. Callers decide whether that is fatal. */
 export class RedisNotConfigured extends Error {
