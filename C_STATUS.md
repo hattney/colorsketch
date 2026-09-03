@@ -248,8 +248,9 @@ npm run build         # dist/ — 통과해야 함
 npm run dev           # mock 모드 퍼널만 로컬 확인 가능 (vite dev엔 api/ 라우트 없음)
 ```
 
-- **라이브 API 스모크**: `https://colorsketch-auri12.vercel.app/api/*` 에 Protection Bypass
-  토큰(현희님께 요청) 붙여 호출. 키 없이도 `503`/`404`가 정상.
+- **라이브 API 스모크**: `https://colorsketch-amber.vercel.app/api/*` — 프로덕션 별칭은
+  공개 접근 가능(로그인 불필요). 2026-09-03 확인: `/api/cron/cleanup` → 401(CRON_SECRET 적용),
+  `/api/download?order=x&variant=simple` → `{"status":"not_found"}` (Redis 연동 후 정상).
 - **`api/` 로직 실검증**은 `SETUP_CHECKLIST.md` 2~7번 키 등록 + `PHASE2_GUIDE.md` §7 테스트.
 - **새 `api/` 파일을 만들면 상대 import에 반드시 `.js`** (lint·build는 통과시켜도 런타임에서 터진다).
 
@@ -272,7 +273,8 @@ npm run dev           # mock 모드 퍼널만 로컬 확인 가능 (vite dev엔 
 
 - GitHub: `https://github.com/hattney/colorsketch` (`main`) — 이 문서 이후 커밋이 최신일 수 있음, `git log` 확인
 - Vercel: 프로젝트 연결됨(`auri12` 팀), `main` 푸시 시 자동 배포. 리전 `iad1`. 빌드·배포 정상.
-- 프로덕션 URL: `https://colorsketch-auri12.vercel.app`
+- 프로덕션 URL: `https://colorsketch-amber.vercel.app` (공개 접근 가능. 이전 표기
+  `colorsketch-auri12.vercel.app`는 보호된 배포별 URL이라 로그인 요구 — 오기였음)
 - Deployment Protection: **Standard Protection 켜짐**. 검토용 접근은 Vercel 팀 로그인 또는
   Protection Bypass 토큰(`Settings → Deployment Protection → Protection Bypass for Automation`).
 - 현재 실 키 0개. `CHECKOUT_MODE` 미설정(= `disabled`). 무료 변환기·랜딩·`/thanks` 라이브 정상.
