@@ -56,26 +56,30 @@ vercel.com → 프로젝트 → **Settings**
 
 ---
 
-## 2. Upstash Redis (주문 상태·레이트리밋·캐시)
+## 2. Upstash Redis (주문 상태·레이트리밋·캐시) — ✅ 완료 (2026-09-03, Claude가 대행)
 
-Vercel 프로젝트 → **Storage** 탭 → **Marketplace Database** → **Upstash → Redis** → Create
+`colorsketch-redis` (Upstash for Redis, Free — 월 500,000 커맨드, Washington D.C. iad1)
+생성·프로젝트 연결 완료 (Production + Preview).
 
-- Primary Region: **N. Virginia (us-east-1)** — iad1과 같은 동네
-- 만들면 Vercel이 이 두 개를 **환경변수에 자동으로** 넣어줍니다:
-  - `UPSTASH_REDIS_REST_URL`
-  - `UPSTASH_REDIS_REST_TOKEN`
-- [ ] Settings → Environment Variables 에서 두 개가 보이는지 확인
-
-무료 플랜(월 10,000 커맨드)으로 충분합니다.
+⚠️ **실제 자동 생성된 변수명은 체크리스트 예상과 다름**: 마켓플레이스 통합은
+`KV_REST_API_URL` / `KV_REST_API_TOKEN` (+ `KV_URL`, `REDIS_URL`,
+`KV_REST_API_READ_ONLY_TOKEN`)을 넣는다. `api/_lib/redis.ts`가 이 이름도
+읽도록 수정됨 (커밋 `d025358`) — 추가 조치 불필요.
 
 ---
 
-## 3. Vercel Blob (원본·완성 파일 저장)
+## 3. Vercel Blob (원본·완성 파일 저장) — ⚠️ 현희님 확인 필요
 
 Vercel 프로젝트 → **Storage** 탭 → **Blob** → Create
 
 - 자동으로 넣어주는 변수: `BLOB_READ_WRITE_TOKEN`
-- [ ] Environment Variables에 보이는지 확인
+- 생성 시 **Access: Public** 선택 (코드가 `access: 'public'`으로 저장 — Private이면 실패),
+  **"Add a read-write token env var" 체크** 필수.
+
+⚠️ **2026-09-03 현황**: 프로젝트에 `BLOB_READ_WRITE_TOKEN`이 이미 존재(19h 전, 수동 추가로
+보임)하는데 **이 팀에는 Blob 스토어가 없음**. 이 때문에 새 스토어 생성이 이름 충돌로 막힘.
+- 그 토큰이 실제 유효한 스토어(다른 계정?)의 것이면 → 그대로 두면 됨.
+- 자리표시용이면 → 그 변수를 삭제한 뒤 위 절차로 스토어를 만들면 자동으로 다시 생김.
 
 무료 플랜: 저장 1GB + 전송 월 10GB. 파일은 7일 후 자동 삭제되므로 쌓이지 않습니다.
 
@@ -133,7 +137,12 @@ Vercel → Settings → Environment Variables 에 직접 추가:
 
 ---
 
-## 6b. CRON_SECRET — 7일 자동 삭제 보호 (필수)
+## 6b. CRON_SECRET — 7일 자동 삭제 보호 (필수) — ✅ 완료 (2026-09-03, Claude가 대행)
+
+Secret 타입으로 Production + Preview에 등록됨 (48자 랜덤 hex). 값은 Vercel에만 저장.
+
+---
+<details><summary>원래 안내 (참고용)</summary>
 
 Vercel Blob은 자동 만료가 없어서 매일 도는 정리 작업(`api/cron/cleanup.ts`)이 7일 지난
 이미지를 지웁니다. Terms의 "7일 내 삭제" 약속이 여기 달려 있습니다.
@@ -143,6 +152,7 @@ Vercel Blob은 자동 만료가 없어서 매일 도는 정리 작업(`api/cron/
 | `CRON_SECRET` | 아무 긴 랜덤 문자열 (예: `openssl rand -hex 24` 결과). Vercel이 cron 호출 시 `Authorization: Bearer <값>`으로 보냄 → 이게 없으면 URL 아는 사람이 정리 작업을 트리거할 수 있음 |
 
 `vercel.json`에 cron 스케줄(`매일 03:00`)이 이미 있으니, 이 변수만 넣으면 됩니다.
+</details>
 
 ---
 
