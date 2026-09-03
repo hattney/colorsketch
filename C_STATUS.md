@@ -55,9 +55,9 @@
 | — | 7일 Blob 삭제 (가이드엔 없지만 Terms §8이 약속) | ✅ 코드 | `api/cron/cleanup.ts`, `vercel.json` crons |
 | 8 | SETUP_CHECKLIST → 사용자 설정 → §7 테스트 9개 | ⬜ **미실행** | — |
 
-**로컬 검증:** `npm run lint` + `npm run build` 무오류. `mock` 모드 전체 퍼널(업로드→AI 데모→
-폴백 프리뷰→가짜 결제→`ai-hd` 편집기), `/thanks` 라우트 3개 상태, 무료 변환기 — 브라우저에서 확인.
-**서버 API는 로컬에서 못 돌린다**(vite dev엔 `api/` 없음). 실검증은 Vercel Preview + 키.
+**검증:** `npm run lint` + `npm run build` 무오류. `mock` 모드 전체 퍼널(업로드→AI 데모→
+폴백 프리뷰→가짜 결제→`ai-hd` 편집기), `/thanks` 라우트 3개 상태, 무료 변환기 — 로컬·프로덕션 확인.
+**서버 API 로직 실검증**은 키 등록 후(§7).
 
 ---
 
@@ -82,7 +82,7 @@ api/
                   키 없으면 RedisNotConfigured throw
     blob.ts       Vercel Blob. putBytes(path, bytes, {contentType, addRandomSuffix}).
                   order 이미지는 suffix 없음(orderId가 이미 추측불가) + allowOverwrite
-    ids.ts        newOrderId=nanoid(21), sha256HexOfBase64 (캐시 키·imageHash)
+    ids.ts        newOrderId=21자 URL-safe(nanoid 알고리즘 인라인, 의존성 없음), sha256HexOfBase64
     order.ts      상태머신. 순수: canTransition/applyTransition/markWebhookProcessed.
                   Redis접촉: loadOrder/saveOrder/createOrder. TTL 7일
     cache.ts      cache:{hash}:{module}:{otherWord}:{variant} → Blob URL. TTL 7일
@@ -270,7 +270,7 @@ npm run dev           # mock 모드 퍼널만 로컬 확인 가능 (vite dev엔 
 
 ## 8. 배포 정보
 
-- GitHub: `https://github.com/hattney/colorsketch` (`main`, 최신 `8ae5e1c`)
+- GitHub: `https://github.com/hattney/colorsketch` (`main`) — 이 문서 이후 커밋이 최신일 수 있음, `git log` 확인
 - Vercel: 프로젝트 연결됨(`auri12` 팀), `main` 푸시 시 자동 배포. 리전 `iad1`. 빌드·배포 정상.
 - 프로덕션 URL: `https://colorsketch-auri12.vercel.app`
 - Deployment Protection: **Standard Protection 켜짐**. 검토용 접근은 Vercel 팀 로그인 또는
