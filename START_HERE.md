@@ -1,10 +1,14 @@
 # ColorSketch — 작업 시작 안내
 
-> **최종 갱신 2026-09-02.** 새 대화에서 이 폴더를 처음 열었다면 이 문서부터 끝까지 읽을 것.
+> **최종 갱신 2026-09-04.** 새 대화에서 이 폴더를 처음 열었다면 이 문서부터 끝까지 읽을 것.
 > 아래 "5분 브리핑"만 읽어도 맥락이 잡히고, 세부 결정은 전부 `CONTENT_UPDATE.md`에 절 번호로 남아 있다.
 >
-> **C단계(결제) 진행 중.** Task 1~7 코드 완료, Vercel 배포됨. 현재 상태·검토 포인트·체크리스트 반영
-> 현황은 전부 **`C_STATUS.md`**(v1). 이 문서의 C단계 관련 서술보다 그쪽이 최신이다.
+> **C단계(결제) 진행 중.** Task 1~7 코드 완료 + 인프라(Redis·Blob·CRON) 연결 완료, Vercel 배포 정상.
+> **남은 것은 외부 서비스 키 4종(Gemini·Turnstile·Resend·Lemon Squeezy) — 현희님 몫.**
+> 현재 상태·검토 포인트·제품 리뷰는 전부 **`C_STATUS.md`(v3)**. 이 문서의 C단계 관련 서술보다
+> 그쪽이 최신이다. 키 발급 절차와 진행표는 **`SETUP_CHECKLIST.md`**.
+>
+> **공개 프로덕션 주소: `https://colorsketch-amber.vercel.app`**
 
 ---
 
@@ -26,8 +30,10 @@
 | B단계 | AI 리터칭 UI + 프롬프트 조립 모듈 | ✅ |
 | 편집기 재설계 | 3단계 분리(무료/AI 데모/구매), Clean up 6단계, 품질 재보정 | ✅ §26~§31 |
 | **AI 연결** | **`/api/ai-preview` — Gemini(Nano Banana) 직결** | ✅ **§32** (키만 넣으면 동작) |
-| **C단계 코드** | **Turnstile·레이트리밋·캐시·워터마크·Blob·주문상태·웹훅·다운로드·`/thanks`** | ✅ **코드 완료** (`C_STATUS.md`), 키·테스트 대기 |
-| **C단계 §8** | **사용자 계정 설정 → 키 등록 → §7 테스트 9개** | ⬜ **다음 작업** |
+| **C단계 코드** | **Turnstile·레이트리밋·캐시·워터마크·Blob·주문상태·웹훅·다운로드·`/thanks`** | ✅ **코드 완료** (`C_STATUS.md`) |
+| **C단계 인프라** | **Upstash Redis · Vercel Blob · `CRON_SECRET`** | ✅ **완료 09-04** |
+| **C단계 외부 키** | **Gemini → Turnstile → Resend → Lemon Squeezy** | ⬜ **현희님 차례 (Gemini 먼저)** |
+| **C단계 테스트** | **`PHASE2_GUIDE.md` §7 테스트 9개** | ⬜ 키 등록 후 |
 
 **절대 건드리면 안 되는 전제 4가지.**
 1. 시크릿은 서버 환경변수로만. 클라이언트 번들에 어떤 키도 노출하지 않는다
@@ -55,10 +61,10 @@ npm run build
 | 파일 | 무엇이 들어 있나 | 언제 읽나 |
 |---|---|---|
 | **`START_HERE.md`** | 지금 이 문서. 맥락·구조·다음 작업 | 항상 먼저 |
-| **`C_STATUS.md`** | **C단계 구현 현황·가이드와 다른 점·검토 포인트·체크리스트 반영 상태** | **C단계 코드를 검토/이어받을 때 (최신)** |
+| **`C_STATUS.md`** (v3) | **C단계 구현 현황·가이드와 다른 점·검토 포인트·다음 작업(§7)·제품 리뷰(§9)** | **C단계를 이어받을 때 — 여기가 항상 최신** |
 | **`CONTENT_UPDATE.md`** | 확정 카피(영문), 디자인 토큰, AI 플로우, 프롬프트, **모든 설계 결정의 근거** | 화면·문구·알고리즘을 건드리기 전 |
 | **`PHASE2_GUIDE.md`** | 서버리스·결제·주문 상태 머신 명세 (= C단계). 불변식 8개 | C단계 착수할 때 (`C_STATUS.md` §4가 이걸 어디서 벗어났는지 정리) |
-| **`SETUP_CHECKLIST.md`** | 사용자가 직접 하는 계정·키 발급 절차 | Vercel/Upstash/Gemini/LS 계정 만들 때 |
+| **`SETUP_CHECKLIST.md`** | 계정·키 발급 절차 + **항목별 완료 현황표** | 키를 넣을 때 / 무엇이 남았는지 볼 때 |
 | **`DESIGN_REFERENCE.html`** | 디자인 기준 목업. 색·간격·컴포넌트의 정답 | 새 UI를 만들 때 |
 
 ### `CONTENT_UPDATE.md` 읽는 법
@@ -111,13 +117,23 @@ src/
     loadImage.ts          HEIC 포함 디코딩
     workerClient.ts       워커 프로토콜
   workers/lineart.worker.ts
-api/
-  ai-preview.ts           ★ Gemini(Nano Banana) 직결. Edge, 의존성 0 (§32)
+api/                      ← 전체 지도는 C_STATUS.md §2. Node 런타임, 상대 import에 .js 필수
+  ai-preview.ts           ★ Turnstile→레이트리밋→(캐시 or Gemini)→워터마크→Blob→주문 previewed
+  checkout.ts             Lemon Squeezy 체크아웃 생성 → previewed→checkout_pending
+  webhook.ts              LS 웹훅. raw-body HMAC 검증 → 멱등 → paid → 발급
+  download.ts             주문 상태 확인 후 Blob으로 302. orderId가 유일 자격증명
+  cron/cleanup.ts         7일 지난 Blob 삭제 (매일 03:00, CRON_SECRET 보호)
+  _lib/                   redis · blob · ids · order · cache · ratelimit · image · turnstile
+                          · deliver · email
 scripts/
   build-single-file.mjs   검토용 단일 HTML 번들 (npm run build:review)
-vercel.json               SPA rewrite (/api/ 는 제외)
+vercel.json               SPA rewrite (/api/ 는 제외) + cron + regions:["iad1"]
 DEPLOY.md                 배포 절차 + 배포 전 확인 항목
 ```
+
+> ⚠️ **`api/**` 안에서 상대 import를 쓸 땐 반드시 `from './x.js'`** (Node ESM 필수).
+> `tsc --noEmit`도 `vite build`도 이걸 못 잡고, 런타임에서 전 함수가 죽는다.
+> 첫 배포의 `FUNCTION_INVOCATION_FAILED` 원인이 이거였다 (`C_STATUS.md` §0).
 
 ---
 
@@ -201,10 +217,13 @@ AI 콜아웃이 뜨는지 보고 그룹을 정한다. 뜨면 AI 그룹, 안 뜨�
 
 ---
 
-## C단계 — 서버리스 + 결제 (다음 작업)
+## C단계 — 서버리스 + 결제 (코드 완료, 키 대기)
 
-`PHASE2_GUIDE.md`의 **§8 작업 순서**를 따른다. 0번(AI 연결)은 §32에서 끝났으므로 **1번부터** 시작한다.
-그 문서 본문 상당수는 AI 미연결 시점에 쓰였으므로, 앞머리 경고 절들이 본문보다 우선한다:
+> **09-04 현재: Task 1~7 코드와 인프라가 모두 끝났다.** 아래는 그 설계 원칙과 이음매 지도이며,
+> "다음에 구현할 것"이 아니라 **"고칠 때 깨뜨리면 안 되는 것"**으로 읽어야 한다.
+> 실제 다음 작업 목록은 **`C_STATUS.md` §7**에 있다.
+
+`PHASE2_GUIDE.md`의 본문 상당수는 AI 미연결 시점에 쓰였으므로, 앞머리 경고 절들이 본문보다 우선한다:
 
 1. **"읽기 전에" 절 (§32 갱신)** — 현재 상태 + 지켜야 할 불변식 8가지. 본문보다 우선한다
 2. **비로그인 결제 실패 대응** — 생성 실패는 설계로 제거하고, 전달 실패는 3중 경로로 받는다
@@ -221,25 +240,22 @@ AI 콜아웃이 뜨는지 보고 그룹을 정한다. 뜨면 AI 그룹, 안 뜨�
 
 클라이언트 쪽 연결 지점 (§32 이후 기준):
 
-| 붙일 곳 | 현재 상태 |
+| 이음매 | 현재 상태 (09-04) |
 |---|---|
-| `api/ai-preview.ts` | **이미 동작한다.** Turnstile·레이트리밋·캐시·워터마크를 여기에 **덧붙일 것** |
-| `utils/aiPreview.ts`의 `requestAiPreview()` | Turnstile 토큰을 실어 보낼 지점 |
-| `utils/checkout.ts`의 `startCheckout()` | **결제의 유일한 이음매.** 본문만 교체하고 `CHECKOUT_MODE`를 `live`로 |
-| `Editor.tsx`의 `chooseVariant(variant, dataUrl)` | 고해상도 결과 URL만 넘기면 그대로 동작 |
-| `utils/router.ts` | 의존성 없는 자체 라우터. `/thanks` 경로 추가는 여기 |
-| `utils/prompt.ts`의 `buildPrompt()` | 서버에서 재구현하지 말고 공유할 것 (이미 그렇게 되어 있다) |
-| `utils/prompt.ts`의 `sanitizeSubjectWord()` | **서버에서 반드시 다시 호출.** 클라이언트 검증은 UX용일 뿐 |
+| `api/ai-preview.ts` | ✅ Turnstile·레이트리밋·캐시·워터마크·Blob·주문생성 **전부 붙어 있다** |
+| `utils/aiPreview.ts`의 `requestAiPreview()` | ✅ Turnstile 토큰을 싣는다 |
+| `utils/checkout.ts`의 `startCheckout()` | ✅ **결제의 유일한 이음매.** `live`면 `/api/checkout` → LS 리다이렉트 |
+| `Editor.tsx`의 `chooseVariant(variant, dataUrl)` | ✅ 동작 |
+| `utils/router.ts` | ✅ `/thanks` 추가됨 |
+| `utils/prompt.ts`의 `buildPrompt()` | ✅ 서버·클라 공유 |
+| `utils/prompt.ts`의 `sanitizeSubjectWord()` | ✅ 서버에서 다시 호출한다. 클라이언트 검증은 UX용일 뿐 |
 
 > ⚠️ `AiCallout.tsx`와 `PaywallNote.tsx`는 **삭제됐다.** 옛 문서가 이걸 가리키면 무시하고
 > `AiDemoPanel.tsx`를 볼 것.
 
-> ⚠️ **워터마크와 Blob 원본 저장을 넣기 전에 `CHECKOUT_MODE`를 `live`로 바꾸지 말 것.**
-> 지금 `/api/ai-preview`는 워터마크 없는 전체 결과를 그대로 내려준다 —
-> 결제를 열면 유료 상품이 무료 프리뷰 단계에서 공짜로 나간다.
-
-C단계는 사용자가 Vercel·Lemon Squeezy·Google AI Studio(Gemini)·Cloudflare Turnstile 계정을 만들어야 진행된다.
-`PHASE2_GUIDE.md` §6을 바탕으로 `SETUP_CHECKLIST.md`를 먼저 만들어 전달하고, 키를 받은 뒤 §7 테스트 9개를 실행할 것.
+> ⚠️ **`CHECKOUT_MODE=live`는 §7 테스트 9개를 통과한 뒤에만.** 워터마크·Blob 원본 저장은
+> 이제 들어가 있지만(그래서 위 경고의 원래 위험은 해소됐다), 실 키로 한 번도 돌려본 적이 없는
+> 경로다. 반드시 **Preview 환경에서 먼저** 켜고 LS Test mode로 검증할 것.
 
 ---
 
@@ -256,12 +272,26 @@ C단계는 사용자가 Vercel·Lemon Squeezy·Google AI Studio(Gemini)·Cloudfl
 
 ## 남은 과제
 
-- **무료 변환 품질 회귀 테스트.** 선이 또렷한 입력에서 항상 만족스러워야 §19의
-  "free is the finished product"가 성립한다. 실이미지 10~20장으로 확인할 것
+**런칭 전 반드시 (P0)** — 근거는 `C_STATUS.md` §9:
+
+- **US Letter 용지 지원.** 타깃이 영미권인데 사이트 전체가 A4 단독이다. 미국 표준은
+  Letter(8.5×11")라 집 프린터에서 여백이 어긋난다. 영국·호주는 A4이므로 **옵션형**이 정답
+- **OG/Twitter 메타 + 파비콘.** `index.html`에 없다. Pinterest·페이스북 육아 그룹이 이 카테고리의
+  핵심 유입인데 지금 공유하면 빈 카드가 뜬다. before/after 이미지를 `og:image`로
+- **`api/` 결제 경로 코드 정독** (`C_STATUS.md` §6 우선순위 1). 돈이 걸린 경로인데 아직 안 했다
+
+**그 다음 (P1)**:
+
 - **퍼널 이벤트 심기.** 업로드 → 무료 다운로드 → AI 콜아웃 노출 → 리터칭 클릭 → variant 선택
   → 체크아웃 시작 → 결제 완료. 이 7개면 방문자 100명으로도 어디서 새는지 보인다.
-  A/B 테스트는 한 쪽당 8,000명이 필요하니 오픈 직후엔 순차 테스트(2주 단위)로 갈 것
-- `leaf-after.png`는 더 이상 쓰이지 않지만 7KB라 남겨뒀다
+  A/B 테스트는 한 쪽당 8,000명이 필요하니 오픈 직후엔 순차 테스트(2주 단위)로 갈 것.
+  지금은 분석 도구가 **아예 없다** — Vercel Analytics(무료)라도 먼저
+- **커스텀 도메인 + 도메인 메일.** 유료 결제를 받는데 연락처가 Gmail이다. Resend 도메인 검증과
+  겹치는 작업이라 도메인을 먼저 정하면 일석이조
+- **무료 변환 품질 회귀 테스트.** 선이 또렷한 입력에서 항상 만족스러워야 §19의
+  "free is the finished product"가 성립한다. 실이미지 10~20장으로 확인할 것
+
+**메모**: `leaf-after.png`는 더 이상 쓰이지 않지만 7KB라 남겨뒀다
 
 ---
 

@@ -1,40 +1,38 @@
 # ColorSketch 배포 설정 체크리스트 (C단계)
 
-> 현희님이 직접 하시는 계정 생성·키 발급 절차. Claude Code는 계정 생성·결제수단 입력·약관 동의를
-> 대신 못 하므로(보안 규칙), 이 문서대로 키만 발급해서 Vercel에 넣으시면 됩니다.
->
-> **지금 할 수 있는 것: 1~6번** (코드가 이미 다 받아들이도록 돼 있음).
-> **7번(Lemon Squeezy)은 `/api/checkout` 코드가 끝난 뒤** — Claude가 "Task 5 완료"라고 하면 하세요.
+> **최종 갱신 2026-09-04.** 현희님이 직접 하시는 계정 생성·키 발급 절차.
+> Claude Code는 계정 생성·결제수단 입력·**API 키를 입력란에 넣는 일**을 대신 못 합니다(보안 규칙).
+> 반면 **인프라 리소스 생성(스토어·환경변수)은 대행 가능**하며, 아래 0~3·6b가 그렇게 끝났습니다.
 >
 > 각 키가 없어도 앱은 안 죽습니다. 캐시·레이트리밋·워터마크·주문저장·결제가 하나씩 켜질 뿐입니다.
 
+## 현재 진행 상황 (한눈에)
+
+| # | 항목 | 상태 | 누가 |
+|---|---|---|---|
+| 0 | 코드 배포 (GitHub → Vercel) | ✅ 완료 | — |
+| 1 | Vercel 프로젝트 설정 | ✅ 완료 | — |
+| 2 | Upstash Redis | ✅ 완료 (09-04) | Claude 대행 |
+| 3 | Vercel Blob | ✅ 완료 (09-04) | Claude 대행 |
+| 6b | `CRON_SECRET` | ✅ 완료 (09-04) | Claude 대행 |
+| **4** | **Google Gemini 키** | ⬜ **다음** | **현희님** |
+| **5** | **Cloudflare Turnstile** | ⬜ | **현희님** |
+| **6** | **Resend (선택)** | ⬜ | **현희님** |
+| **7** | **Lemon Squeezy** | ⬜ | **현희님** |
+| 9 | §7 테스트 9개 | ⬜ | 함께 |
+
+**4번(Gemini)이 가장 먼저입니다** — AI 프리뷰가 실물로 나와야 워터마크 모양·품질을 눈으로
+확인하고 나머지를 판단할 수 있습니다. 5·6·7은 그 뒤에 해도 됩니다.
+
 ---
 
-## 0. 코드를 배포 가능하게 만들기 (한 번만)
+## 0. 코드 배포 — ✅ 완료
 
-이 폴더는 아직 git 저장소가 아닙니다. 둘 중 하나:
-
-**A. Vercel CLI (git 없이, 가장 빠름)**
-
-```bash
-npm install -g vercel
-cd colorsketch-handoff
-vercel            # 로그인 → 프로젝트 생성 (질문은 전부 기본값 Enter)
-vercel --prod     # 실서비스 주소로 승격
-```
-
-**B. GitHub 연결 (자동 배포를 원하면)**
-
-```bash
-cd colorsketch-handoff
-git init && git add -A && git commit -m "ColorSketch"
-# GitHub에서 빈 저장소 만든 뒤:
-git remote add origin https://github.com/<계정>/colorsketch.git
-git push -u origin main
-```
-→ vercel.com → **Add New → Project** → 그 저장소 선택 → Import
-
-배포 후 얻는 주소(예: `https://colorsketch-xxx.vercel.app`)를 적어두세요 — 7번 웹훅 등록에 씁니다.
+- GitHub: `https://github.com/hattney/colorsketch` (`main`)
+- Vercel: `auri12` 팀 → `colorsketch` 프로젝트, `main` 푸시 시 자동 배포
+- **공개 프로덕션 주소: `https://colorsketch-amber.vercel.app`** ← 7번 웹훅 등록에 이 주소를 씁니다
+  (배포별 URL인 `colorsketch-<해시>-auri12.vercel.app`은 Deployment Protection 때문에
+  로그인 벽이 뜹니다. 외부에 주는 주소는 항상 위의 `-amber` 쪽입니다)
 
 ---
 
@@ -80,7 +78,7 @@ vercel.com → 프로젝트 → **Settings**
 
 ---
 
-## 4. Google Gemini (AI 리터치 — Nano Banana)
+## 4. Google Gemini (AI 리터치 — Nano Banana) — ⬜ **다음 작업 (현희님)**
 
 [aistudio.google.com](https://aistudio.google.com) → 로그인 → **Get API key** → **Create API key**
 
@@ -97,12 +95,12 @@ Vercel → Settings → Environment Variables 에 직접 추가:
 
 ---
 
-## 5. Cloudflare Turnstile (봇 차단)
+## 5. Cloudflare Turnstile (봇 차단) — ⬜ 현희님
 
 [dash.cloudflare.com](https://dash.cloudflare.com) → 가입 → 왼쪽 메뉴 **Turnstile** → **Add widget**
 
 - Widget name: `ColorSketch`
-- Domain: 배포 주소의 호스트 (예: `colorsketch-xxx.vercel.app`, 나중에 커스텀 도메인도 추가)
+- Domain: **`colorsketch-amber.vercel.app`** (나중에 커스텀 도메인도 추가)
 - Widget Mode: **Managed** (기본)
 
 발급되는 키 2개를 Vercel 환경변수에:
@@ -117,7 +115,7 @@ Vercel → Settings → Environment Variables 에 직접 추가:
 
 ---
 
-## 6. (선택) Resend — 발급 메일 + 실패 알림
+## 6. (선택) Resend — 발급 메일 + 실패 알림 — ⬜ 현희님
 
 결제 완료 시 구매자에게 다운로드 링크 메일, 발급 3회 실패 시 관리자·구매자에게 메일이 갑니다.
 없어도 앱은 돌아갑니다(다운로드는 `/thanks` 페이지 + localStorage 배너로 복구).
@@ -151,7 +149,7 @@ Vercel Blob은 자동 만료가 없어서 매일 도는 정리 작업(`api/cron/
 
 ---
 
-## 7. Lemon Squeezy (결제) — ✅ Task 5·6·7 완료, 진행 가능
+## 7. Lemon Squeezy (결제) — ⬜ 현희님 (코드는 완료, 진행 가능)
 
 1. [lemonsqueezy.com](https://lemonsqueezy.com) 가입 → **Store** 생성
    - 국가: **Republic of Korea (ROK)** (정산 지원 국가)
@@ -164,7 +162,7 @@ Vercel Blob은 자동 만료가 없어서 매일 도는 정리 작업(`api/cron/
      `https://<도메인>/thanks?order={주문id}`로 자동 지정함
 3. **Settings → API** → API key 발급
 4. **Settings → Webhooks → Add endpoint**
-   - URL: `https://<배포주소>/api/webhook`
+   - URL: **`https://colorsketch-amber.vercel.app/api/webhook`**
    - Signing secret: 아무 긴 문자열 생성해서 저장 (아래 `LEMONSQUEEZY_WEBHOOK_SECRET`에 씀)
    - 이벤트: **`order_created`**, **`order_refunded`** 만 체크 (구독 이벤트 불필요)
 5. **Test mode 켜기** (스토어 우상단 토글) — 실제 청구 없이 테스트 카드로 검증
@@ -185,29 +183,38 @@ Vercel 환경변수:
 
 Vercel → Settings → Environment Variables. **Production + Preview 둘 다** 체크해서 추가하세요.
 
-| 변수 | 출처 | 없으면 |
-|---|---|---|
-| `GEMINI_API_KEY` | 4번 | AI 프리뷰가 폴백 트레이서로 (경고 표시) |
-| `AI_MODEL_ID` | 4번 | 기본 모델명 사용 |
-| `UPSTASH_REDIS_REST_URL` / `_TOKEN` | 2번 (자동) | 캐시·레이트리밋·주문저장 없음 → 결제 불가 |
-| `BLOB_READ_WRITE_TOKEN` | 3번 (자동) | 원본 저장 없음 → 결제 불가 |
-| `VITE_TURNSTILE_SITE_KEY` | 5번 | 봇 위젯 안 뜸 |
-| `TURNSTILE_SECRET_KEY` | 5번 | 서버 봇 검증 안 함 |
-| `LEMONSQUEEZY_API_KEY` | 7번 | 결제 불가 |
-| `LEMONSQUEEZY_STORE_ID` | 7번 | 결제 불가 |
-| `LEMONSQUEEZY_VARIANT_ID` | 7번 | 결제 불가 |
-| `LEMONSQUEEZY_WEBHOOK_SECRET` | 7번 | `/api/webhook` 503 → 결제돼도 발급 안 됨 |
-| `RESEND_API_KEY` / `RESEND_FROM` / `ADMIN_EMAIL` | 6번 | 발급·실패 메일 안 감 (앱은 정상, `/thanks`로 복구) |
-| `CRON_SECRET` | 6b번 | 7일 정리 작업이 무인증 노출 → **꼭 설정** |
-| `VITE_CHECKOUT_MODE` | 아래 참고 | 프로덕션은 자동으로 `disabled` |
+**2026-09-04 기준 실제 등록 현황** (Vercel `colorsketch` 프로젝트, 전부 Production + Preview):
+
+| 변수 | 출처 | 상태 | 없으면 |
+|---|---|---|---|
+| `KV_REST_API_URL` / `KV_REST_API_TOKEN` | 2번 (자동) | ✅ | 캐시·레이트리밋·주문저장 없음 → 결제 불가 |
+| `KV_URL` / `REDIS_URL` / `KV_REST_API_READ_ONLY_TOKEN` | 2번 (자동) | ✅ | 코드가 안 씀 (Upstash가 함께 넣는 것) |
+| `BLOB_READ_WRITE_TOKEN` | 3번 (자동) | ✅ | 원본 저장 없음 → 결제 불가 |
+| `BLOB_STORE_ID` / `BLOB_WEBHOOK_PUBLIC_KEY` | 3번 (자동) | ✅ | 코드가 안 씀 |
+| `CRON_SECRET` | 6b번 | ✅ | 7일 정리 작업이 무인증 노출 |
+| `VITE_CHECKOUT_MODE` | 아래 참고 | ✅ | 프로덕션은 자동으로 `disabled` |
+| **`GEMINI_API_KEY`** | **4번** | ⬜ | AI 프리뷰가 폴백 트레이서로 (경고 표시) |
+| `AI_MODEL_ID` | 4번 | ⬜ | 기본값 `gemini-2.5-flash-image` 사용 |
+| **`VITE_TURNSTILE_SITE_KEY`** | **5번** | ⬜ | 봇 위젯 안 뜸 |
+| **`TURNSTILE_SECRET_KEY`** | **5번** | ⬜ | 서버 봇 검증 안 함 |
+| `RESEND_API_KEY` / `RESEND_FROM` / `ADMIN_EMAIL` | 6번 | ⬜ | 발급·실패 메일 안 감 (앱은 정상, `/thanks`로 복구) |
+| **`LEMONSQUEEZY_API_KEY`** | **7번** | ⬜ | 결제 불가 |
+| **`LEMONSQUEEZY_STORE_ID`** | **7번** | ⬜ | 결제 불가 |
+| **`LEMONSQUEEZY_VARIANT_ID`** | **7번** | ⬜ | 결제 불가 |
+| **`LEMONSQUEEZY_WEBHOOK_SECRET`** | **7번** | ⬜ | `/api/webhook` 503 → 결제돼도 발급 안 됨 |
+
+> ⚠️ **Redis 변수 이름 주의.** 문서 초안은 `UPSTASH_REDIS_REST_URL`/`_TOKEN`을 가정했지만
+> Vercel 마켓플레이스 Upstash 통합은 **`KV_REST_API_URL`/`KV_REST_API_TOKEN`**(레거시 Vercel KV
+> 이름)을 넣습니다. `api/_lib/redis.ts`가 둘 다 읽도록 고쳐졌으므로(커밋 `d025358`)
+> 어느 쪽이 들어와도 동작합니다. 직접 손으로 넣을 일은 없습니다.
 
 ### `VITE_CHECKOUT_MODE`
 
-| 단계 | 값 |
-|---|---|
-| 지금 (키 넣는 중, `FUNCTION_INVOCATION_FAILED` 재검증 전) | **설정 안 함**(= `disabled`) 또는 `mock`(검토용) |
-| API 함수가 정상 응답 확인된 뒤 | `mock` 유지하며 프리뷰·워터마크 눈으로 확인 |
-| 모든 키 세팅 + §7 테스트 9개 통과 후 | `live` |
+| 단계 | 값 | 현재 |
+|---|---|---|
+| 키 넣는 중 | **설정 안 함**(= `disabled`) 또는 `mock`(검토용) | ← **지금 여기** |
+| Gemini 키 들어간 뒤 | `mock` 유지하며 실제 AI 프리뷰·워터마크를 눈으로 확인 | |
+| 모든 키 세팅 + §7 테스트 9개 통과 후 | `live` | |
 
 환경변수를 바꾸면 **재배포(Redeploy)** 해야 반영됩니다.
 
