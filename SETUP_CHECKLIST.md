@@ -68,18 +68,13 @@ vercel.com → 프로젝트 → **Settings**
 
 ---
 
-## 3. Vercel Blob (원본·완성 파일 저장) — ⚠️ 현희님 확인 필요
+## 3. Vercel Blob (원본·완성 파일 저장) — ✅ 완료 (2026-09-03, Claude가 대행)
 
-Vercel 프로젝트 → **Storage** 탭 → **Blob** → Create
+`colorsketch-blob` (Access: **Public**, 리전 iad1) 생성·프로젝트 연결 완료.
+자동 추가된 변수: `BLOB_READ_WRITE_TOKEN`, `BLOB_STORE_ID`, `BLOB_WEBHOOK_PUBLIC_KEY`.
 
-- 자동으로 넣어주는 변수: `BLOB_READ_WRITE_TOKEN`
-- 생성 시 **Access: Public** 선택 (코드가 `access: 'public'`으로 저장 — Private이면 실패),
-  **"Add a read-write token env var" 체크** 필수.
-
-⚠️ **2026-09-03 현황**: 프로젝트에 `BLOB_READ_WRITE_TOKEN`이 이미 존재(19h 전, 수동 추가로
-보임)하는데 **이 팀에는 Blob 스토어가 없음**. 이 때문에 새 스토어 생성이 이름 충돌로 막힘.
-- 그 토큰이 실제 유효한 스토어(다른 계정?)의 것이면 → 그대로 두면 됨.
-- 자리표시용이면 → 그 변수를 삭제한 뒤 위 절차로 스토어를 만들면 자동으로 다시 생김.
+참고: 이전에 스토어 없이 홀로 존재하던 `BLOB_READ_WRITE_TOKEN`(정체불명, 현희님 확인 결과
+직접 추가한 것 아님)은 현희님 승인 하에 삭제 후 재생성함.
 
 무료 플랜: 저장 1GB + 전송 월 10GB. 파일은 7일 후 자동 삭제되므로 쌓이지 않습니다.
 
