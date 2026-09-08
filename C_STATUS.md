@@ -12,7 +12,7 @@
 
 **Task 1~7 코드 구현 완료 + 인프라(Redis·Blob·CRON_SECRET) 연결 완료.**
 GitHub `hattney/colorsketch` `main`, Vercel 프로덕션 배포 `Ready`.
-남은 것은 **외부 서비스 키 4종(Gemini · Turnstile · Resend · Lemon Squeezy)** — 현희님 몫이다.
+**Gemini · Turnstile 키까지 등록 완료(09-04).** 남은 것은 **Resend(선택) · Lemon Squeezy**뿐이다.
 
 **2026-09-04 프로덕션 스모크** (`https://colorsketch-amber.vercel.app`, 로그인 불필요):
 
@@ -143,12 +143,27 @@ created → previewed → checkout_pending → paid → delivered
 | 1. Vercel 설정 | ✅ | — | `vercel.json`: `regions:["iad1"]`, cron, SPA rewrite. 함수 5개 컴파일·sharp 에러 없음 | — |
 | 2. Upstash Redis | ✅ **09-04** | `KV_REST_API_URL`, `KV_REST_API_TOKEN` (구 `UPSTASH_REDIS_REST_*`도 인식) | 주문 상태·캐시·레이트리밋·락 전부 | `RedisNotConfigured` → **캐시/레이트리밋/주문저장 모두 스킵**, AI 프리뷰는 계속 동작(orderId 없음) → **체크아웃 자동 불가** |
 | 3. Vercel Blob | ✅ **09-04** | `BLOB_READ_WRITE_TOKEN` | 워터마크 없는 원본·HD·캐시 이미지 저장 | `blobConfigured()` false → 주문 생성 스킵 → orderId 없음 → 체크아웃 불가 |
-| 4. Gemini | ⬜ | `GEMINI_API_KEY`, `AI_MODEL_ID` | `api/ai-preview.ts` Gemini 직결 | 503 → 클라가 **로컬 트레이서 폴백** + "not AI output" 경고 (§32 정직성). `AI_MODEL_ID` 기본 `gemini-2.5-flash-image` |
-| 5. Turnstile | ⬜ | `VITE_TURNSTILE_SITE_KEY`(공개), `TURNSTILE_SECRET_KEY` | 위젯 렌더 / `siteverify` | site key 없으면 위젯 안 뜸(`turnstileRequired=false`), secret 없으면 서버 검증 스킵. **둘 다 있어야 실제 차단** |
+| 4. Gemini | ✅ **09-04** | `GEMINI_API_KEY`, `AI_MODEL_ID` | `api/ai-preview.ts` Gemini 직결 | 503 → 클라가 **로컬 트레이서 폴백** + "not AI output" 경고 (§32 정직성). `AI_MODEL_ID` 기본 `gemini-2.5-flash-image` |
+| 5. Turnstile | ✅ **09-04** (Production 전용) | `VITE_TURNSTILE_SITE_KEY`(공개), `TURNSTILE_SECRET_KEY` | 위젯 렌더 / `siteverify` | site key 없으면 위젯 안 뜸(`turnstileRequired=false`), secret 없으면 서버 검증 스킵. **둘 다 있어야 실제 차단** |
 | 6. Resend | ⬜ | `RESEND_API_KEY`, `RESEND_FROM`, `ADMIN_EMAIL` | `api/_lib/email.ts` | 전부 no-op. 발급/실패 메일 안 감 (앱은 정상). `RESEND_FROM`은 **검증된 도메인 필요** — 없으면 구매자 메일 실패, 관리자 메일은 계정 소유자 주소로 감 |
 | 6b. 7일 스윕 | ✅ **09-04** | `CRON_SECRET` | `api/cron/cleanup.ts` 인증 | 없으면 인증 없이 실행됨(URL 알면 누구나 트리거) |
 | 7. Lemon Squeezy | ⬜ | `LEMONSQUEEZY_API_KEY`, `_STORE_ID`, `_VARIANT_ID`, `_WEBHOOK_SECRET` | `api/checkout.ts`(생성), `api/webhook.ts`(검증·발급) | API/STORE/VARIANT 없으면 `/api/checkout` 503. WEBHOOK_SECRET 없으면 `/api/webhook` 503 |
 | 스위치 | ✅ (`disabled`) | `VITE_CHECKOUT_MODE` | `src/utils/checkout.ts` | 미설정 = 프로덕션 `disabled` / dev `mock`. **모든 키 + §7 통과 후에만 `live`** |
+
+### ⚠️ 빈 껍데기 환경변수 사건 (09-04) — 다음 사람 필독
+
+이전 세션이 **값 없이 이름만 만들어 둔 환경변수 배치**가 있었고, 이게 세 번 문제를 일으켰다.
+전부 09-04에 삭제·재설정으로 정리했지만, 패턴 자체를 기억해 둘 것.
+
+| 변수 | 증상 | 왜 위험했나 |
+|---|---|---|
+| `BLOB_READ_WRITE_TOKEN` | 스토어는 없는데 변수만 존재 → 새 Blob 스토어 생성이 **이름 충돌로 차단** | 삭제 후 재생성으로 해결 |
+| `UPSTASH_REDIS_REST_URL`/`_TOKEN` | **진짜 Redis를 가림** | `redis.ts`가 `UPSTASH_* || KV_*` 순서로 읽어서, 앞의 껍데기가 우선권을 가진다. 폴백을 추가할 땐 **어느 쪽이 우선인지**가 곧 위험이다 |
+| `AI_MODEL_ID` | 틀린 모델명이면 Gemini 호출이 전부 404 | Secret 타입이라 값을 볼 수도 없었다. **삭제해서 코드 기본값을 쓰게 하는 것이 정답** |
+| Turnstile 키 2개 | 값이 비어 있는 채로 존재 | Turnstile은 **가짜 값이 값 없음보다 나쁜** 유일한 항목 (`if (!SECRET) return true` vs `if (!token) return false`) |
+
+**교훈:** Vercel 환경변수는 "있다/없다"가 아니라 **"진짜 값이 들어 있나"**로 봐야 한다.
+Secret 타입은 값을 되볼 수 없으므로, 출처가 불분명하면 **덮어쓰거나 지우는 게 확인보다 빠르다.**
 
 ### 인프라 셋업에서 실제로 겪은 것 (09-04)
 
@@ -158,6 +173,11 @@ created → previewed → checkout_pending → paid → delivered
    승인 하에 삭제 후 재생성. **Blob 스토어는 Access `Public`으로 만들어야 한다**
    (`api/_lib/blob.ts`가 `access: 'public'`으로 `put` — Private 스토어면 실패).
 3. **Upstash Free는 DB 1개/계정 제한.** 지금 그 한 자리를 `colorsketch-redis`가 쓰고 있다.
+4. **Turnstile 키는 `Production` 전용으로 넣어야 한다.** Preview 배포는 URL이 매번 바뀌어
+   Turnstile 도메인 검사를 통과할 수 없다. 그리고 site key와 secret의 **환경 범위가 어긋나면**
+   (secret만 Preview에 있는 식) 그 환경의 AI 프리뷰가 전부 403이 된다. 반드시 짝을 맞출 것.
+5. **`VITE_` 접두사 변수는 Vercel에서 `Config` 타입이어야 한다.** Secret으로 저장하려 하면
+   거부된다 — 접두사 자체가 "브라우저로 내보낸다"는 선언이기 때문. 사이트키는 공개 키라 정상이다.
 
 ### 7번(Lemon Squeezy) 진행 시 반영할 것
 

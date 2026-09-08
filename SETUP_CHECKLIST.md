@@ -15,14 +15,16 @@
 | 2 | Upstash Redis | ✅ 완료 (09-04) | Claude 대행 |
 | 3 | Vercel Blob | ✅ 완료 (09-04) | Claude 대행 |
 | 6b | `CRON_SECRET` | ✅ 완료 (09-04) | Claude 대행 |
-| **4** | **Google Gemini 키** | ⬜ **다음** | **현희님** |
-| **5** | **Cloudflare Turnstile** | ⬜ | **현희님** |
+| 4 | Google Gemini 키 | ✅ 완료 (09-04) | 현희님 |
+| 5 | Cloudflare Turnstile | ✅ 완료 (09-04) | 현희님 |
 | **6** | **Resend (선택)** | ⬜ | **현희님** |
-| **7** | **Lemon Squeezy** | ⬜ | **현희님** |
+| **7** | **Lemon Squeezy** | ⬜ **다음** | **현희님** |
 | 9 | §7 테스트 9개 | ⬜ | 함께 |
 
-**4번(Gemini)이 가장 먼저입니다** — AI 프리뷰가 실물로 나와야 워터마크 모양·품질을 눈으로
-확인하고 나머지를 판단할 수 있습니다. 5·6·7은 그 뒤에 해도 됩니다.
+**남은 것은 6번(Resend, 선택)과 7번(Lemon Squeezy)뿐입니다.** 4·5번은 09-04에 끝났고,
+그 과정에서 이전 세션이 값 없이 만들어 둔 **빈 껍데기 변수들**을 정리했습니다 —
+`UPSTASH_REDIS_REST_URL`/`_TOKEN`(진짜 Redis를 가리고 있었음), `AI_MODEL_ID`,
+그리고 값이 비어 있던 Turnstile 키 2개. 자세한 경위는 `C_STATUS.md` §3.
 
 ---
 
@@ -78,7 +80,13 @@ vercel.com → 프로젝트 → **Settings**
 
 ---
 
-## 4. Google Gemini (AI 리터치 — Nano Banana) — ⬜ **다음 작업 (현희님)**
+## 4. Google Gemini (AI 리터치 — Nano Banana) — ✅ 완료 (2026-09-04)
+
+`GEMINI_API_KEY` 등록됨 (Production + Preview).
+**`AI_MODEL_ID`는 일부러 등록하지 않았습니다** — 코드 기본값 `gemini-2.5-flash-image`를 씁니다
+(`api/ai-preview.ts:51`). 모델명이 바뀌었을 때만 이 변수를 추가해 덮어쓰세요.
+
+<details><summary>발급 절차 (참고용)</summary>
 
 [aistudio.google.com](https://aistudio.google.com) → 로그인 → **Get API key** → **Create API key**
 
@@ -90,12 +98,21 @@ Vercel → Settings → Environment Variables 에 직접 추가:
 | `AI_MODEL_ID` | `gemini-2.5-flash-image` — ⚠️ **발급 화면의 모델 목록에서 이미지 편집 모델 정확한 이름을 확인**하고 넣으세요. 이름이 자주 바뀝니다. 비워두면 이 기본값을 씀 |
 
 - 결제 계정 연결이 필요할 수 있습니다(이미지 모델은 유료 티어). 사용량은 프리뷰당 2회 호출.
-- [ ] 키를 Vercel에 넣고 재배포 → 업로드 → AI 프리뷰 생성 시 실제 선화 2장이 나오면 성공
-      (안 나오면 폴백 트레이서 + "not AI output" 경고가 뜸)
+</details>
 
 ---
 
-## 5. Cloudflare Turnstile (봇 차단) — ⬜ 현희님
+## 5. Cloudflare Turnstile (봇 차단) — ✅ 완료 (2026-09-04)
+
+키 2개 등록됨. **⚠️ 둘 다 `Production` 전용입니다 — Preview에 넣지 마세요.**
+Vercel Preview 배포는 URL이 매번 바뀌어(`colorsketch-<해시>-auri12.vercel.app`)
+Turnstile 도메인 검사를 통과할 수 없습니다. 그리고 시크릿만 Preview에 있으면
+위젯이 안 뜨는데 서버는 토큰을 요구해서 **AI 프리뷰가 전부 403**이 됩니다.
+
+`VITE_TURNSTILE_SITE_KEY`는 **Config 타입**이어야 합니다 — `VITE_` 접두사는 "브라우저로
+내보낸다"는 뜻이라 Vercel이 Secret 타입 저장을 거부합니다. 사이트키는 공개 키라 정상입니다.
+
+<details><summary>발급 절차 (참고용)</summary>
 
 [dash.cloudflare.com](https://dash.cloudflare.com) → 가입 → 왼쪽 메뉴 **Turnstile** → **Add widget**
 
@@ -111,7 +128,7 @@ Vercel → Settings → Environment Variables 에 직접 추가:
 | `TURNSTILE_SECRET_KEY` | Secret Key | 서버 전용. 절대 `VITE_` 붙이지 말 것 |
 
 - 둘 다 넣어야 작동합니다. 하나만 넣으면: 사이트키만 → 위젯은 뜨는데 서버 검증 안 함 / 시크릿만 → 위젯 안 뜨는데 서버가 토큰을 요구해서 프리뷰가 막힘.
-- [ ] 재배포 후 AI 프리뷰 화면에 "I'm not a robot" 체크박스가 뜨는지 확인
+</details>
 
 ---
 
@@ -181,7 +198,8 @@ Vercel 환경변수:
 
 ## 8. 환경변수 전체 요약
 
-Vercel → Settings → Environment Variables. **Production + Preview 둘 다** 체크해서 추가하세요.
+Vercel → Settings → Environment Variables.
+기본은 **Production + Preview 둘 다**이지만, **Turnstile 키 2개만 Production 전용**입니다(§5 이유).
 
 **2026-09-04 기준 실제 등록 현황** (Vercel `colorsketch` 프로젝트, 전부 Production + Preview):
 
@@ -193,10 +211,10 @@ Vercel → Settings → Environment Variables. **Production + Preview 둘 다** 
 | `BLOB_STORE_ID` / `BLOB_WEBHOOK_PUBLIC_KEY` | 3번 (자동) | ✅ | 코드가 안 씀 |
 | `CRON_SECRET` | 6b번 | ✅ | 7일 정리 작업이 무인증 노출 |
 | `VITE_CHECKOUT_MODE` | 아래 참고 | ✅ | 프로덕션은 자동으로 `disabled` |
-| **`GEMINI_API_KEY`** | **4번** | ⬜ | AI 프리뷰가 폴백 트레이서로 (경고 표시) |
-| `AI_MODEL_ID` | 4번 | ⬜ | 기본값 `gemini-2.5-flash-image` 사용 |
-| **`VITE_TURNSTILE_SITE_KEY`** | **5번** | ⬜ | 봇 위젯 안 뜸 |
-| **`TURNSTILE_SECRET_KEY`** | **5번** | ⬜ | 서버 봇 검증 안 함 |
+| `GEMINI_API_KEY` | 4번 | ✅ | AI 프리뷰가 폴백 트레이서로 (경고 표시) |
+| `AI_MODEL_ID` | 4번 | — (미등록이 정상) | 코드 기본값 `gemini-2.5-flash-image` 사용 |
+| `VITE_TURNSTILE_SITE_KEY` | 5번 | ✅ **Production만** | 봇 위젯 안 뜸 |
+| `TURNSTILE_SECRET_KEY` | 5번 | ✅ **Production만** | 서버 봇 검증 안 함 |
 | `RESEND_API_KEY` / `RESEND_FROM` / `ADMIN_EMAIL` | 6번 | ⬜ | 발급·실패 메일 안 감 (앱은 정상, `/thanks`로 복구) |
 | **`LEMONSQUEEZY_API_KEY`** | **7번** | ⬜ | 결제 불가 |
 | **`LEMONSQUEEZY_STORE_ID`** | **7번** | ⬜ | 결제 불가 |
