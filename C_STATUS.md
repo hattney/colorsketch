@@ -43,6 +43,36 @@ GitHub `hattney/colorsketch` `main`, Vercel 프로덕션 배포 `Ready`.
 | `2959be8` | Task 5 — `/api/checkout` + Lemon Squeezy |
 | `cab7d37` | Task 1~4 — 인프라 유틸 + 캐시/레이트리밋 + 워터마크/주문생성 + Turnstile |
 
+### 🎉 09-04 프로덕션 실검증 — AI 프리뷰 파이프라인 완주
+
+실제 사진(`/samples/dog-before.jpg`)으로 프로덕션 퍼널을 끝까지 태웠고, **처음으로 진짜
+Gemini 선화가 나왔다.** 확인된 것:
+
+| 단계 | 결과 |
+|---|---|
+| Turnstile 게이트 | 토큰 발급 → `Generate` 활성화 (테스트 키 기준) |
+| `POST /api/ai-preview` | **200, 8.9초**, `x-colorsketch-cache: miss` |
+| Gemini 출력 | 800×800 워터마크 프리뷰 2장. **닫힌 윤곽선의 실제 컬러링 도안** — 털·눈·입이 색칠 가능한 형태로 재생성됨 |
+| 정직성 플래그 | `usedRealAi=true` → `Not AI` 배지·경고 **안 뜸** (정상) |
+| Simple vs Detailed | 서로 다른 이미지 확인 (해시 상이, Detailed가 더 큼 = 선 더 많음) |
+| Blob + Redis | **주문 생성됨** `orderId=xHxT4juYN_X7MD_rXJVVi` (21자) → 워터마크 없는 원본 저장 성공 |
+| 재요청 (§7 테스트 #1) | `x-colorsketch-cache: **hit**` — 모델 재호출 0. 캐시 정상 |
+
+즉 §5의 🔴 "검증 안 됨" 중 **1번(Gemini 응답 파싱)과 2번(sharp 실행)이 해소됐다.**
+`AI_MODEL_ID` 없이 코드 기본값 `gemini-2.5-flash-image`로 동작한다.
+
+**워터마크 소견:** 대각선 타일 패턴이 흰 바탕에서는 또렷하지만 선화 위에서는 꽤 옅다
+(`fill-opacity 0.14`). 실질적 보호는 워터마크보다 **800px 해상도 제한**이 하고 있다.
+강도를 올릴지는 `api/_lib/image.ts` 상수로 조절 — 판단 필요.
+
+> ### ⛔ 지금 프로덕션은 Cloudflare **테스트 키**로 돌고 있다 (봇 차단 사실상 꺼짐)
+>
+> 진짜 사이트키가 `400020`으로 위젯 초기화에 실패해서, 원인 격리를 위해 공개 더미 키
+> (`1x00000000000000000000AA` / `1x0000000000000000000000000000000AA`)로 바꿔 둔 상태다.
+> **이 키는 무조건 통과시키므로 런칭 전 반드시 진짜 키로 되돌려야 한다.**
+> 이 교체로 **우리 쪽 배선은 정상임이 증명됐다** — 남은 문제는 Cloudflare 위젯 설정
+> (Domains에 `colorsketch-amber.vercel.app` 등록 / 사이트키 값)이다.
+
 ### 이번에 배운 것 (다음 사람 주의)
 
 - **이 프로젝트는 `package.json`에 `"type": "module"`.** Vercel은 `api/**` 함수를 **네이티브 ESM**으로
@@ -53,6 +83,13 @@ GitHub `hattney/colorsketch` `main`, Vercel 프로덕션 배포 `Ready`.
 - **환경변수 이름은 문서가 아니라 대시보드가 정한다.** Vercel 마켓플레이스 Upstash는
   `UPSTASH_REDIS_REST_*`가 아니라 **`KV_REST_API_URL`/`KV_REST_API_TOKEN`**을 넣는다
   (레거시 Vercel KV 이름). 새 통합을 붙일 땐 실제 생성된 변수명을 먼저 확인할 것.
+- **`VITE_` 변수는 빌드 시점에 번들로 구워진다.** Vercel에서 값만 바꾸면 반영되지 않고,
+  **재배포(재빌드)가 있어야** 새 값이 들어간다. 라이브 확인법: `curl`로 `index-*.js`를 받아
+  값을 grep. 그리고 **빈 커밋으로는 부족할 수 있다** — 소스가 동일하면 Vercel이 이전 빌드
+  출력을 재사용한다.
+- **Vercel 환경변수 편집은 저장 성공 여부를 반드시 확인할 것.** 값을 프로그램적으로 넣으면
+  React 상태에 반영되지 않아 조용히 저장되지 않는 경우가 있었다. 행의 타임스탬프가
+  `just now`로 바뀌는지로 확인하는 게 확실하다.
 - **프로덕션 URL은 `-amber` 별칭이다.** `colorsketch-<해시>-auri12.vercel.app`은 배포별 URL이라
   Deployment Protection(Standard) 때문에 로그인 벽이 뜬다. 외부에 주는 주소·웹훅·Turnstile 도메인은
   전부 **`colorsketch-amber.vercel.app`**.
