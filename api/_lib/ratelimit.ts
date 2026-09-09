@@ -23,6 +23,18 @@ export const PREVIEW_WINDOW_SECONDS = 24 * 60 * 60;
 export const DOWNLOAD_LIMIT = 20;
 export const DOWNLOAD_WINDOW_SECONDS = 60 * 60;
 
+/**
+ * Status polls are counted separately from file handouts.
+ *
+ * `/thanks` polls `/api/download` without a variant while it waits for fulfilment. Charging
+ * those to the same 20/h bucket as the files meant a buyer whose order took longer than a
+ * minute burned the whole allowance waiting and could then not download at all — the one way
+ * this design could take someone's money and leave them with nothing. Reading a status is
+ * cheap and safe to repeat; handing out the file is the thing worth rationing.
+ */
+export const STATUS_LIMIT = 120;
+export const STATUS_WINDOW_SECONDS = 60 * 60;
+
 export interface RateLimitCheck {
   allowed: boolean;
   remaining: number;

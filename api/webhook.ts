@@ -2,6 +2,7 @@ import crypto from 'node:crypto';
 import { deleteImages } from './_lib/blob.js';
 import { deliverOrder } from './_lib/deliver.js';
 import {
+  OrderTransitionError,
   applyTransition,
   isWebhookProcessed,
   loadOrder,
@@ -83,8 +84,23 @@ export async function POST(req: Request): Promise<Response> {
     if (!isWebhookProcessed(order, eventId)) {
       let next = markWebhookProcessed(order, eventId);
       next = { ...next, email: email ?? next.email, lsOrderId: lsOrderId || next.lsOrderId };
+      // A refund that already landed wins. Without this, an `order_created` arriving after
+      // `order_refunded` (out of order, or a second LS order id) threw an illegal-transition
+      // error out of the handler — a 500, which Lemon Squeezy then retries forever.
+      if (next.status === 'refunded') {
+        await saveOrder(next);
+        return json({ received: true }, 200);
+      }
       if (next.status !== 'paid' && next.status !== 'delivered') {
-        next = applyTransition(next, 'paid');
+        try {
+          next = applyTransition(next, 'paid');
+        } catch (e) {
+          if (!(e instanceof OrderTransitionError)) throw e;
+          // Logically impossible, not transient: acknowledge so LS stops resending.
+          console.warn('webhook could not mark paid', orderId, next.status, e.message);
+          await saveOrder(next);
+          return json({ received: true }, 200);
+        }
       }
       await saveOrder(next);
     }
@@ -97,6 +113,11 @@ export async function POST(req: Request): Promise<Response> {
   if (eventName === 'order_refunded') {
     if (!isWebhookProcessed(order, eventId)) {
       const marked = markWebhookProcessed(order, eventId);
+      if (marked.status === 'refunded') {
+        // Already refunded under a different event id — record the id and stop.
+        await saveOrder(marked);
+        return json({ received: true }, 200);
+      }
       await saveOrder(applyTransition(marked, 'refunded'));
       const urls: Array<string | undefined> = [];
       for (const v of Object.values(marked.variants)) {

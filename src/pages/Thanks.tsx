@@ -23,9 +23,20 @@ type State =
   | { kind: 'failed' }
   | { kind: 'not_paid' }
   | { kind: 'refunded' }
+  | { kind: 'rate_limited'; retryAfterMs: number | null }
   | { kind: 'missing' };
 
+/**
+ * Polling backs off instead of hammering a fixed 3s.
+ *
+ * Fulfilment is normally a few seconds, so the first checks stay fast. But a slow or stuck
+ * order used to mean 20 requests a minute for as long as the tab was open, which burned the
+ * IP's allowance and left the buyer on a spinner that could never resolve. Growing the gap
+ * keeps the fast path fast and makes the slow path survivable.
+ */
 const POLL_MS = 3000;
+const POLL_MAX_MS = 30000;
+const POLL_GROWTH = 1.5;
 const STYLE_LABEL: Record<StyleVariant, string> = { simple: 'Simple', detailed: 'Detailed' };
 const VARIANTS: StyleVariant[] = ['simple', 'detailed'];
 
@@ -52,9 +63,14 @@ export default function Thanks() {
   const [orderId] = useState(orderIdFromUrl);
   const [state, setState] = useState<State>(orderId ? { kind: 'loading' } : { kind: 'missing' });
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const delay = useRef(POLL_MS);
 
   const poll = useCallback(async () => {
     if (!orderId) return;
+    const again = () => {
+      timer.current = setTimeout(poll, delay.current);
+      delay.current = Math.min(Math.round(delay.current * POLL_GROWTH), POLL_MAX_MS);
+    };
     try {
       const res = await fetch(`/api/download?order=${encodeURIComponent(orderId)}`, {
         headers: { accept: 'application/json' },
@@ -80,13 +96,30 @@ export default function Thanks() {
         setState({ kind: status === 'not_paid' ? 'not_paid' : 'missing' });
         return;
       }
-      // processing / rate_limited / anything else — keep waiting.
+      // Too many checks from this network. Stop and hand the reader a button rather than
+      // spinning forever against a limit that will not lift on its own.
+      if (status === 'rate_limited') {
+        const retryAfterMs =
+          typeof (body as { retryAfterMs?: unknown } | null)?.retryAfterMs === 'number'
+            ? ((body as { retryAfterMs: number }).retryAfterMs)
+            : null;
+        setState({ kind: 'rate_limited', retryAfterMs });
+        return;
+      }
+      // processing / anything else — keep waiting.
       setState((s) => (s.kind === 'loading' ? { kind: 'processing' } : s));
-      timer.current = setTimeout(poll, POLL_MS);
+      again();
     } catch {
-      timer.current = setTimeout(poll, POLL_MS);
+      again();
     }
   }, [orderId]);
+
+  /** Manual retry from the rate-limited card: start the backoff over. */
+  const retryNow = useCallback(() => {
+    delay.current = POLL_MS;
+    setState({ kind: 'processing' });
+    poll();
+  }, [poll]);
 
   useEffect(() => {
     poll();
@@ -170,6 +203,24 @@ export default function Thanks() {
             </a>{' '}
             with your order reference.
           </p>
+        </div>
+      )}
+
+      {state.kind === 'rate_limited' && (
+        <div className="rounded-xl border-[2.5px] border-ink bg-white p-5">
+          <p className="m-0 mb-2 font-bold">Too many checks from your network.</p>
+          <p className="m-0 mb-4 text-[13px] text-ink-soft">
+            Your order is safe and nothing has been lost — this page just asked for an update
+            more often than we allow.
+            {typeof state.retryAfterMs === 'number' && state.retryAfterMs > 0
+              ? ` Try again in about ${Math.max(1, Math.ceil(state.retryAfterMs / 60000))} minute(s),`
+              : ' Try again in a few minutes,'}{' '}
+            or come back to this same link later — your download stays here.
+          </p>
+          <button type="button" onClick={retryNow} className="btn max-w-[240px]">
+            <RefreshCw className="h-5 w-5" aria-hidden="true" />
+            Check again
+          </button>
         </div>
       )}
 

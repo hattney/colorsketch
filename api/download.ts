@@ -6,6 +6,8 @@ import type { StyleVariant } from '../src/utils/prompt.js';
 import {
   DOWNLOAD_LIMIT,
   DOWNLOAD_WINDOW_SECONDS,
+  STATUS_LIMIT,
+  STATUS_WINDOW_SECONDS,
   checkRateLimit,
   clientIp,
   consumeRateLimit,
@@ -45,12 +47,18 @@ export async function GET(req: Request): Promise<Response> {
 
   if (!orderId) return json({ status: 'not_found' }, 404);
 
+  // A request with a variant hands out a file; without one it is a status poll from
+  // /thanks. They get separate budgets — see STATUS_LIMIT.
+  const bucket = variant ? 'download' : 'orderstatus';
+  const limit = variant ? DOWNLOAD_LIMIT : STATUS_LIMIT;
+  const windowSeconds = variant ? DOWNLOAD_WINDOW_SECONDS : STATUS_WINDOW_SECONDS;
+
   const ip = clientIp(req);
-  const gate = await checkRateLimit('download', ip, DOWNLOAD_LIMIT);
+  const gate = await checkRateLimit(bucket, ip, limit);
   if (!gate.allowed) {
     return json({ status: 'rate_limited', retryAfterMs: gate.retryAfterMs }, 429);
   }
-  await consumeRateLimit('download', ip, DOWNLOAD_WINDOW_SECONDS);
+  await consumeRateLimit(bucket, ip, windowSeconds);
 
   let order = await loadOrder(orderId);
   if (!order) return json({ status: 'not_found' }, 404);
