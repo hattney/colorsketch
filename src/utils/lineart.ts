@@ -1,3 +1,4 @@
+import { pageMm, type PaperId } from './paper';
 // Pure pixel processing. No DOM APIs — safe to run inside a Web Worker.
 
 export type LineArtMode = 'illustration' | 'photo';
@@ -8,8 +9,10 @@ export interface LineArtOptions {
   mode: LineArtMode;
   /** 0–100. Higher = more lines survive. */
   detail: number;
+  /** The sheet the thickness and speck sizes below are measured on. */
+  paper: PaperId;
   /**
-   * Printed line thickness in millimetres on A4.
+   * Printed line thickness in millimetres on the chosen sheet.
    *
    * Not pixels. The dilation radius is derived from the canvas size, so the preview, the PNG
    * download and the print all put the same physical thickness on the page — before this the
@@ -19,8 +22,9 @@ export interface LineArtOptions {
   cleanup: Cleanup;
 }
 
-/** A4 is 210mm on the short edge; a landscape page is 297mm across. */
-const pixelsPerMm = (width: number, height: number) => width / (width > height ? 297 : 210);
+/** Millimetres come from the sheet, not from a hardcoded A4 — Letter is 215.9 x 279.4mm. */
+const pixelsPerMm = (width: number, height: number, paper: PaperId) =>
+  width / pageMm(paper, width > height).width;
 
 /**
  * Six steps, weighted toward the end of the range that actually produces good pages.
@@ -54,9 +58,9 @@ export interface RawImage {
 /** Converts an RGBA source (white-composited) into black-on-white line art. In-place on a new buffer. */
 export function renderLineArt(src: RawImage, opts: LineArtOptions): RawImage {
   const { width, height } = src;
-  const { mode, detail, thicknessMm, cleanup } = opts;
+  const { mode, detail, thicknessMm, cleanup, paper } = opts;
 
-  const ppmm = pixelsPerMm(width, height);
+  const ppmm = pixelsPerMm(width, height, paper);
   const { blur, speckMm2 } = CLEANUP[cleanup];
   // A speck floor in mm² rather than pixels, so "Strong" removes the same specks on a
   // thumbnail as on the 300dpi export.

@@ -288,7 +288,7 @@ export default function AiDemoPanel({
           </div>
           <p className="m-0 mb-3 max-w-[560px] text-[13px] leading-[1.5] text-ink-soft">
             One payment for this image returns <strong className="text-ink">both</strong> styles,
-            redrawn like the example above, with no watermark at A4 300 DPI — and opens the HD
+            redrawn like the example above, with no watermark at your chosen sheet — and opens the HD
             editor with the same thickness, detail and eraser handles you already used.
             {price ? ` ${price}, one time — no subscription, no account.` : ''}
           </p>
@@ -306,7 +306,7 @@ export default function AiDemoPanel({
             </p>
           )}
           <p className="m-0 mt-2 text-[11.5px] leading-[1.4] text-ink-soft">
-            Your free A4 download stays free either way.
+            Your free download stays free either way.
             {isMockCheckout ? ` ${MOCK_NOTICE}` : ''}
             {!isCheckoutOpen ? ` ${DISABLED_NOTICE}` : ''}
           </p>

@@ -52,7 +52,7 @@ function Landing() {
           }}
         >
           <strong>{image ? bar.title : 'Start here — drop in an image'}</strong>
-          <span className="text-right font-bold">{image ? bar.meta : 'Free · A4 300 DPI'}</span>
+          <span className="text-right font-bold">{image ? bar.meta : 'Free · Letter or A4'}</span>
         </div>
         {image ? (
           <Editor

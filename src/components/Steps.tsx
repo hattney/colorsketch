@@ -8,7 +8,7 @@ import React from 'react';
 const STEPS = [
   { n: 1, title: 'Upload', body: 'Any photo — JPG, PNG, WebP, HEIC', shadow: 'var(--crayon-red)' },
   { n: 2, title: 'Convert', body: 'Free and instant, right in your browser', shadow: 'var(--crayon-yellow)' },
-  { n: 3, title: 'Print', body: 'Your A4 page at 300 DPI, ready to color', shadow: 'var(--crayon-blue)' },
+  { n: 3, title: 'Print', body: 'Your page on US Letter or A4, ready to color', shadow: 'var(--crayon-blue)' },
 ];
 
 export default function Steps() {

@@ -30,7 +30,7 @@ export const STAGE_BAR: Record<Stage, StageBar> = {
     background: 'var(--crayon-yellow)',
     color: 'var(--ink)',
     title: 'Your coloring page',
-    meta: 'Free · A4 300 DPI',
+    meta: 'Free · Letter or A4',
   },
   /* Red is already the site's AI colour (.btn-magic, .btn-red), so crossing into the AI
      flow reads as "the loud thing I just clicked", not as a new brand. */
@@ -46,7 +46,7 @@ export const STAGE_BAR: Record<Stage, StageBar> = {
     background: 'var(--ink)',
     color: '#ffffff',
     title: '✦ AI HD page',
-    meta: 'Purchased · A4 300 DPI',
+    meta: 'Purchased · Letter or A4',
   },
 };
 

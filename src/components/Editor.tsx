@@ -1,4 +1,4 @@
-import { ArrowLeft, Download, Eraser, Printer, RefreshCw, Sparkles, Type, Undo2 } from 'lucide-react';
+import { ArrowLeft, Download, Eraser, FileText, Printer, RefreshCw, Sparkles, Type, Undo2 } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 import { VARIANTS, VARIANT_SETTINGS, type Stage } from '../utils/aiFlow';
 import { AiPreviewError, AiPreviewUnavailable, requestAiPreview } from '../utils/aiPreview';
@@ -21,6 +21,17 @@ import {
   type ErasePath,
   type Point,
 } from '../utils/pipeline';
+import {
+  DEFAULT_PAPER,
+  PAPERS,
+  PAPER_IDS,
+  exportSize,
+  pageMm,
+  paperRatio,
+  paperSpec,
+  type Orientation,
+  type PaperId,
+} from '../utils/paper';
 import type { StyleVariant, SubjectModule } from '../utils/prompt';
 import { rememberOrder } from '../utils/orderRecovery';
 import AiDemoPanel from './AiDemoPanel';
@@ -67,20 +78,31 @@ function imageDataToUrl(data: ImageData): string {
 }
 
 export default function Editor({ image, onReset, stage, onStage }: EditorProps) {
-  // A4 proportions
-  const A4_RATIO = 297 / 210;
-  const isLandscape = image.width > image.height;
+  /**
+   * The sheet is the user's choice, not the photo's.
+   *
+   * Orientation still *starts* from the photo, because a wide shot on a portrait sheet
+   * wastes half the page. Before this that was the only rule and there was no way to
+   * override it, so a landscape photo quietly produced a landscape sheet while the header
+   * still promised a portrait one. Size was not a choice at all: A4 only, on a site whose
+   * audience mostly has US Letter in the tray.
+   */
+  const [paper, setPaper] = useState<PaperId>(DEFAULT_PAPER);
+  const [orientation, setOrientation] = useState<Orientation>(
+    image.width > image.height ? 'landscape' : 'portrait',
+  );
+  const isLandscape = orientation === 'landscape';
+  const SHEET_RATIO = paperRatio(paper);
 
-  const PREVIEW_WIDTH = isLandscape ? Math.round(595 * A4_RATIO) : 595;
-  const PREVIEW_HEIGHT = isLandscape ? 595 : Math.round(595 * A4_RATIO);
-  const THUMB_WIDTH = isLandscape ? Math.round(220 * A4_RATIO) : 220;
-  const THUMB_HEIGHT = isLandscape ? 220 : Math.round(220 * A4_RATIO);
+  const PREVIEW_WIDTH = isLandscape ? Math.round(595 * SHEET_RATIO) : 595;
+  const PREVIEW_HEIGHT = isLandscape ? 595 : Math.round(595 * SHEET_RATIO);
+  const THUMB_WIDTH = isLandscape ? Math.round(220 * SHEET_RATIO) : 220;
+  const THUMB_HEIGHT = isLandscape ? 220 : Math.round(220 * SHEET_RATIO);
 
-  const EXPORT_WIDTH = isLandscape ? 3508 : 2480;
-  const EXPORT_HEIGHT = isLandscape ? 2480 : 3508;
+  const { width: EXPORT_WIDTH, height: EXPORT_HEIGHT } = exportSize(paper, isLandscape);
 
   // Every output is a scaled copy of this one trace, so preview and print never disagree.
-  const TRACE = traceSize(isLandscape);
+  const TRACE = traceSize(paper, isLandscape);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const thumbRefs = {
@@ -190,7 +212,7 @@ export default function Editor({ image, onReset, stage, onStage }: EditorProps) 
         image,
         THUMB_WIDTH,
         THUMB_HEIGHT,
-        { mode: thumbMode, ...DEFAULTS },
+        { mode: thumbMode, ...DEFAULTS, paper },
         true,
       );
       if (cancelled) return;
@@ -216,7 +238,7 @@ export default function Editor({ image, onReset, stage, onStage }: EditorProps) 
         activeImage,
         TRACE.width,
         TRACE.height,
-        { mode: activeMode, detail, thicknessMm, cleanup },
+        { mode: activeMode, detail, thicknessMm, cleanup, paper },
         true,
       )
         .then((data) => {
@@ -236,7 +258,7 @@ export default function Editor({ image, onReset, stage, onStage }: EditorProps) 
     }, 300);
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeImage, activeMode, isHdEditing, detail, thicknessMm, cleanup]);
+  }, [activeImage, activeMode, isHdEditing, detail, thicknessMm, cleanup, paper, isLandscape]);
 
   /**
    * Whether the AI editor is worth pointing at. The entry button is always available — anyone
@@ -280,7 +302,7 @@ export default function Editor({ image, onReset, stage, onStage }: EditorProps) 
     const other: LineArtMode = variantMode === 'photo' ? 'illustration' : 'photo';
 
     // Erosion radius, in pixels at trace scale: a stroke has to actually vanish under it.
-    const ppmm = TRACE.width / (isLandscape ? 297 : 210);
+    const ppmm = TRACE.width / pageMm(paper, isLandscape).width;
     const erode = Math.max(2, Math.round((base.thicknessMm * ppmm) / SOLID_ERODE_DIVISOR));
 
     const attempts: { mode: LineArtMode; thicknessMm: number }[] = [
@@ -303,7 +325,7 @@ export default function Editor({ image, onReset, stage, onStage }: EditorProps) 
         image,
         TRACE.width,
         TRACE.height,
-        { mode: attempt.mode, ...base, thicknessMm: attempt.thicknessMm },
+        { mode: attempt.mode, ...base, thicknessMm: attempt.thicknessMm, paper },
         true,
       );
 
@@ -343,6 +365,8 @@ export default function Editor({ image, onReset, stage, onStage }: EditorProps) 
         subject ?? 'auto',
         otherWord,
         turnstileToken,
+        paper,
+        isLandscape,
       );
       setDemoPreviews(previews);
       setOrderId(newOrderId ?? null);
@@ -491,7 +515,7 @@ export default function Editor({ image, onReset, stage, onStage }: EditorProps) 
   };
 
   /**
-   * Export: enlarge the trace already on screen to A4 300dpi. No second trace, so the file
+   * Export: enlarge the trace on screen onto the chosen sheet at 300dpi. No second trace, so the file
    * is the preview — same lines, same density, same millimetre thickness.
    */
   const buildExportCanvas = (): HTMLCanvasElement => {
@@ -508,7 +532,8 @@ export default function Editor({ image, onReset, stage, onStage }: EditorProps) 
     try {
       const canvas = buildExportCanvas();
       const link = document.createElement('a');
-      link.download = isHdEditing ? 'ColorSketch-A4-HD.png' : 'ColorSketch-A4.png';
+      const sheet = paperSpec(paper).id === 'a4' ? 'A4' : 'Letter';
+      link.download = isHdEditing ? `ColorSketch-${sheet}-HD.png` : `ColorSketch-${sheet}.png`;
       link.href = canvas.toDataURL('image/png');
       link.click();
     } catch (e) {
@@ -522,7 +547,7 @@ export default function Editor({ image, onReset, stage, onStage }: EditorProps) 
   const handlePrint = async () => {
     setIsExporting(true);
     try {
-      const canvas = buildExportCanvas(); // same 300dpi output as download
+      const canvas = buildExportCanvas(); // the same file the download button produces
       const dataUrl = canvas.toDataURL('image/png');
       const printWindow = window.open('', '_blank');
       if (!printWindow) {
@@ -535,7 +560,7 @@ export default function Editor({ image, onReset, stage, onStage }: EditorProps) 
             <title>Print ColorSketch</title>
             <style>
               body { margin: 0; padding: 0; }
-              @page { size: A4 ${isLandscape ? 'landscape' : 'portrait'}; margin: 0; }
+              @page { size: ${paperSpec(paper).cssSize} ${isLandscape ? 'landscape' : 'portrait'}; margin: 0; }
               img { width: 100%; height: 100%; object-fit: contain; }
             </style>
           </head>
@@ -658,7 +683,7 @@ export default function Editor({ image, onReset, stage, onStage }: EditorProps) 
       </div>
 
       <p className="m-0 mb-5 text-[11.5px] leading-[1.4] text-ink-soft">
-        Thickness is measured on the printed A4 page, so what you see here is exactly what comes
+        Thickness is measured on the printed page, so what you see here is exactly what comes
         out of the printer.
       </p>
     </>
@@ -699,6 +724,53 @@ export default function Editor({ image, onReset, stage, onStage }: EditorProps) 
           {paths.length} erased {paths.length === 1 ? 'stroke' : 'strokes'}
         </p>
       )}
+    </div>
+  );
+
+  /**
+   * Paper sits with the download buttons rather than up with the tracing controls, because
+   * it is an output decision. Changing either row reflows the preview immediately — what is
+   * on screen is the sheet that prints, which is the whole point of the mm-based thickness.
+   */
+  const paperBlock = (
+    <div className="mb-6">
+      <h4 className="m-0 mb-2 flex items-center gap-2 font-display text-sm font-bold">
+        <FileText className="h-4 w-4" aria-hidden="true" />
+        Paper
+      </h4>
+      <div className="mb-2 grid grid-cols-2 gap-2" role="group" aria-label="Paper size">
+        {PAPER_IDS.map((id) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setPaper(id)}
+            aria-pressed={paper === id}
+            className={`rounded-lg border-2 border-ink px-3 py-2 text-[13px] font-bold transition-colors ${
+              paper === id ? 'bg-ink text-white' : 'bg-white text-ink'
+            }`}
+          >
+            {PAPERS[id].label}
+          </button>
+        ))}
+      </div>
+      <div className="grid grid-cols-2 gap-2" role="group" aria-label="Orientation">
+        {(['portrait', 'landscape'] as Orientation[]).map((o) => (
+          <button
+            key={o}
+            type="button"
+            onClick={() => setOrientation(o)}
+            aria-pressed={orientation === o}
+            className={`rounded-lg border-2 border-ink px-3 py-2 text-[13px] font-bold capitalize transition-colors ${
+              orientation === o ? 'bg-ink text-white' : 'bg-white text-ink'
+            }`}
+          >
+            {o}
+          </button>
+        ))}
+      </div>
+      <p className="m-0 mt-2 text-xs text-ink-soft">
+        Fitted to {PAPERS[paper].label}, {orientation}. The sheet above is what prints.
+      </p>
     </div>
   );
 
@@ -768,7 +840,7 @@ export default function Editor({ image, onReset, stage, onStage }: EditorProps) 
       {/* Canvas Area */}
       {/*
         items-start matters: a flex child stretches to the row height by default, which
-        overrode the sheet's A4 aspect-ratio and left the page tall and half empty. It also
+        overrode the sheet's aspect-ratio and left the page tall and half empty. It also
         threw the eraser off, since pointer coordinates are normalized against the element
         while the drawing sits letterboxed inside it.
       */}
@@ -867,11 +939,12 @@ export default function Editor({ image, onReset, stage, onStage }: EditorProps) 
             <hr className="mb-5 border-0 border-t-2 border-ink/15" />
             {eraserBlock}
             {textBlock}
+            {paperBlock}
 
             <div className="flex flex-col gap-3">
               <button type="button" onClick={handleDownload} disabled={busy} className="btn">
                 <Download className="h-5 w-5" aria-hidden="true" />
-                Download A4 — free
+                Download — free
               </button>
               <button type="button" onClick={handlePrint} disabled={busy} className="btn btn-ghost">
                 <Printer className="h-5 w-5" aria-hidden="true" />
@@ -908,7 +981,7 @@ export default function Editor({ image, onReset, stage, onStage }: EditorProps) 
               </button>
               {!paid && (
                 <p className="m-0 mt-2 text-[11px] leading-[1.4] text-ink-soft">
-                  Two previews, free to look at. Your free A4 download stays free either way.
+                  Two previews, free to look at. Your free download stays free either way.
                 </p>
               )}
             </div>
@@ -957,11 +1030,12 @@ export default function Editor({ image, onReset, stage, onStage }: EditorProps) 
                 <hr className="mb-5 border-0 border-t-2 border-ink/15" />
                 {eraserBlock}
                 {textBlock}
+                {paperBlock}
 
                 <div className="flex flex-col gap-3">
                   <button type="button" onClick={handleDownload} disabled={busy} className="btn">
                     <Download className="h-5 w-5" aria-hidden="true" />
-                    Download A4 HD
+                    Download HD
                   </button>
                   <button type="button" onClick={handlePrint} disabled={busy} className="btn btn-ghost">
                     <Printer className="h-5 w-5" aria-hidden="true" />

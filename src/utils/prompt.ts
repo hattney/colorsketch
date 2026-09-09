@@ -13,7 +13,7 @@
 export type SubjectModule = 'auto' | 'people-pets' | 'nature' | 'objects-places' | 'artwork' | 'other';
 export type StyleVariant = 'simple' | 'detailed';
 
-export const CORE = `Redraw as a children's coloring book page: thick uniform black outlines, about 2mm on A4, on pure white. Every shape fully closed so it can be colored in. Turn all texture into a few smooth continuous lines — never short repeated strokes. No shading, gradients, grey, hatching, stippling or reflections. Keep the proportions and pose. A4 portrait, pure black and white, no text, no border.`;
+export const CORE = `Redraw as a children's coloring book page: thick uniform black outlines, about 2mm on a printed page, on pure white. Every shape fully closed so it can be colored in. Turn all texture into a few smooth continuous lines — never short repeated strokes. No shading, gradients, grey, hatching, stippling or reflections. Keep the proportions and pose. Portrait page, pure black and white, no text, no border.`;
 
 export const SUBJECT_MODULES: Record<Exclude<SubjectModule, 'other'>, string> = {
   'people-pets': `Face: clean minimal outlines only — no fur strands, wrinkles or lumps. Each eye is one smooth shape with a solid pupil and one small highlight. At most four whiskers per side. Friendly and cartoon-like.`,

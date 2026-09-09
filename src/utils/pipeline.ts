@@ -1,4 +1,5 @@
 import type { LineArtOptions, RawImage } from './lineart';
+import { paperRatio, type PaperId } from './paper';
 import { processInWorker } from './workerClient';
 
 export type Point = { x: number; y: number };
@@ -20,13 +21,14 @@ export interface ComposeOptions {
  * 13% ink on screen and 2.7% in the downloaded file, because upscaling the source first
  * smears the gradients the detector is looking for. One trace, one result, everywhere.
  *
- * 1754px is A4 at 150dpi: enough detail to hold up when doubled to 300dpi, and roughly a
- * quarter of the work of tracing at full export size.
+ * 1754px is roughly half the 300dpi export on either sheet: enough detail to hold up when
+ * enlarged, and roughly a quarter of the work of tracing at full export size. Only the short
+ * edge moves with the paper, so a Letter trace is a little wider than an A4 one.
  */
 export const TRACE_LONG_EDGE = 1754;
 
-export function traceSize(isLandscape: boolean) {
-  const short = Math.round(TRACE_LONG_EDGE / 1.4142);
+export function traceSize(paper: PaperId, isLandscape: boolean) {
+  const short = Math.round(TRACE_LONG_EDGE / paperRatio(paper));
   return isLandscape
     ? { width: TRACE_LONG_EDGE, height: short }
     : { width: short, height: TRACE_LONG_EDGE };

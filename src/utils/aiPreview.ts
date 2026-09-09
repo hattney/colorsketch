@@ -1,3 +1,4 @@
+import type { PaperId } from './paper';
 import type { StyleVariant, SubjectModule } from './prompt';
 
 /**
@@ -73,6 +74,8 @@ export async function requestAiPreview(
   module: SubjectModule,
   otherWord: string,
   turnstileToken?: string,
+  paper?: PaperId,
+  landscape?: boolean,
 ): Promise<AiPreviewResult> {
   const { mimeType, base64 } = encodeForUpload(image);
 
@@ -81,7 +84,15 @@ export async function requestAiPreview(
     res = await fetch('/api/ai-preview', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
-      body: JSON.stringify({ imageBase64: base64, mimeType, module, otherWord, turnstileToken }),
+      body: JSON.stringify({
+        imageBase64: base64,
+        mimeType,
+        module,
+        otherWord,
+        turnstileToken,
+        paper,
+        landscape,
+      }),
     });
   } catch {
     throw new AiPreviewUnavailable('offline');

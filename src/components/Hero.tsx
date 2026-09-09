@@ -21,7 +21,7 @@ export default function Hero() {
 
         <p className="m-0 mb-[26px] max-w-[45ch] text-[17px] text-ink-soft">
           Upload a photo or drawing, and ColorSketch instantly converts it into a clean, printable
-          A4 coloring page — right in your browser.{' '}
+          coloring page — right in your browser.{' '}
           <strong className="text-ink">No sign-up needed. Try the free converter first</strong> —
           then, only if a photo needs it, upgrade to an AI-enhanced version for smoother, richer
           lines worth framing.
@@ -39,7 +39,7 @@ export default function Hero() {
           {[
             { icon: '✓', text: 'Free converter, no limits' },
             { icon: '✓', text: 'No sign-up, no account' },
-            { icon: '✓', text: 'One photo, one A4 page' },
+            { icon: '✓', text: 'Prints on US Letter or A4' },
           ].map((item) => (
             <li
               key={item.text}

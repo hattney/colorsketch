@@ -4,6 +4,7 @@ import { newOrderId, sha256HexOfBase64 } from './_lib/ids.js';
 import { watermarkedPreview } from './_lib/image.js';
 import { blobConfigured, orderImagePath, putBytes } from './_lib/blob.js';
 import { createOrder, type VariantAsset } from './_lib/order.js';
+import { isPaperId, type PaperId } from '../src/utils/paper.js';
 import { RedisNotConfigured, redisConfigured } from './_lib/redis.js';
 import { verifyTurnstile } from './_lib/turnstile.js';
 import {
@@ -59,6 +60,9 @@ interface PreviewRequest {
   module?: unknown;
   otherWord?: unknown;
   turnstileToken?: unknown;
+  /** Sheet the buyer is looking at, so delivery can match it. */
+  paper?: unknown;
+  landscape?: unknown;
 }
 
 type VariantResult =
@@ -245,6 +249,11 @@ export async function POST(req: Request): Promise<Response> {
     return json({ error: 'Unsupported image type.' }, 415);
   }
 
+  // Recorded on the order so `deliverOrder` upscales onto the sheet the buyer actually saw.
+  // Untrusted input, so anything unrecognised falls back to the default rather than throwing.
+  const paper: PaperId | undefined = isPaperId(body.paper) ? body.paper : undefined;
+  const landscape = typeof body.landscape === 'boolean' ? body.landscape : undefined;
+
   const ip = clientIp(req);
   const turnstileToken = typeof body.turnstileToken === 'string' ? body.turnstileToken : undefined;
   if (!(await verifyTurnstile(turnstileToken, ip))) {
@@ -324,6 +333,8 @@ export async function POST(req: Request): Promise<Response> {
         module,
         otherWord,
         fromModel: true,
+        paper,
+        landscape,
         variants,
       });
       orderId = oid;

@@ -6,7 +6,7 @@ import { Link } from '../utils/router';
 const ITEMS: { q: string; a: React.ReactNode }[] = [
   {
     q: 'Is ColorSketch free?',
-    a: 'The in-browser converter is 100% free, unlimited, and needs no sign-up — and it gives you the same A4 300 DPI file the paid version does. The optional AI HD conversion is a one-time paid download per image.',
+    a: 'The in-browser converter is 100% free, unlimited, and needs no sign-up — and it gives you the same print-ready file the paid version does. The optional AI HD conversion is a one-time paid download per image.',
   },
   {
     q: 'When do I pay?',
@@ -18,7 +18,7 @@ const ITEMS: { q: string; a: React.ReactNode }[] = [
   },
   {
     q: 'What do I get when I purchase?',
-    a: 'Both styles — Simple and Detailed — as high-resolution A4 files (300 DPI, no watermark), ready to print at home or at a print shop.',
+    a: 'Both styles — Simple and Detailed — as high-resolution files with no watermark, on US Letter or A4, ready to print at home or at a print shop.',
   },
   {
     q: 'Can I use the coloring pages commercially?',

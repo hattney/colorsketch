@@ -13,7 +13,7 @@ import { StyleVariant } from '../../src/utils/prompt.js';
 import { orderImagePath, putBytes } from './blob.js';
 import { sendAdminFailureAlert, sendBuyerDeliveryEmail, sendBuyerFailureApology } from './email.js';
 import { applyTransition, loadOrder, saveOrder, type OrderRecord } from './order.js';
-import { upscaleToA4 } from './image.js';
+import { upscaleToPaper } from './image.js';
 
 const VARIANTS: StyleVariant[] = ['simple', 'detailed'];
 const MAX_DELIVERY_ATTEMPTS = 3;
@@ -56,7 +56,7 @@ export async function deliverOrder(orderId: string, origin: string): Promise<voi
 
     try {
       const src = await fetchBytes(asset.originalUrl);
-      const hires = await upscaleToA4(src);
+      const hires = await upscaleToPaper(src, order.paper, order.landscape);
       const url = await putBytes(orderImagePath(orderId, variant, 'hires'), hires, {
         contentType: 'image/png',
         addRandomSuffix: false,

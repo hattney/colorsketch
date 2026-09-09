@@ -15,6 +15,7 @@
  * regenerate or abandon checkout and come back; the paid side of the graph never loops back
  * to an unpaid state.
  */
+import type { PaperId } from '../../src/utils/paper.js';
 import type { StyleVariant, SubjectModule } from '../../src/utils/prompt.js';
 import { RedisNotConfigured, redisGetJSON, redisSetJSON } from './redis.js';
 import { newOrderId } from './ids.js';
@@ -47,6 +48,14 @@ export interface OrderRecord {
    * has no HD to sell, so `/api/checkout` refuses an order with this false.
    */
   fromModel: boolean;
+  /**
+   * The sheet the buyer had selected when the preview was made. Delivery upscales onto this,
+   * so the file they download is the page they saw. Absent on orders written before paper
+   * was a choice — `upscaleToPaper` falls back to the default sheet for those.
+   */
+  paper?: PaperId;
+  /** Landscape when the buyer had turned the sheet sideways. */
+  landscape?: boolean;
   variants: Partial<Record<StyleVariant, VariantAsset>>;
   /** Lemon Squeezy order id, from the webhook. */
   lsOrderId?: string;
@@ -133,6 +142,8 @@ export interface CreateOrderInput {
   module: SubjectModule;
   otherWord?: string;
   fromModel: boolean;
+  paper?: PaperId;
+  landscape?: boolean;
   variants: Partial<Record<StyleVariant, VariantAsset>>;
   /** Pre-generated id, when the originals were uploaded to `orders/{id}/…` before the record existed. */
   orderId?: string;
@@ -149,6 +160,8 @@ export async function createOrder(input: CreateOrderInput): Promise<OrderRecord>
     module: input.module,
     otherWord: input.otherWord,
     fromModel: input.fromModel,
+    paper: input.paper,
+    landscape: input.landscape,
     variants: input.variants,
     createdAt: ts,
     updatedAt: ts,

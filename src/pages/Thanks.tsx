@@ -41,7 +41,7 @@ function printImage(url: string) {
   }
   w.document.write(
     `<html><head><title>Print — ColorSketch</title><style>` +
-      `body{margin:0;padding:0}@page{size:A4 portrait;margin:0}` +
+      `body{margin:0;padding:0}@page{size:auto;margin:0}` +
       `img{width:100%;height:100%;object-fit:contain}</style></head>` +
       `<body><img src="${url}" onload="window.print();window.close()"/></body></html>`,
   );
@@ -128,7 +128,7 @@ export default function Thanks() {
             return (
               <div key={v} className="rounded-xl border-[2.5px] border-ink bg-white p-4">
                 <h2 className="m-0 mb-1 font-display text-[17px] font-extrabold">{STYLE_LABEL[v]}</h2>
-                <p className="m-0 mb-3 text-[12.5px] text-ink-soft">A4 · 300 DPI · no watermark</p>
+                <p className="m-0 mb-3 text-[12.5px] text-ink-soft">Full resolution · no watermark</p>
                 {url ? (
                   <div className="flex flex-col gap-2">
                     <a

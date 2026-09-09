@@ -34,7 +34,7 @@ export const MOCK_NOTICE =
   'Test mode — no payment is taken and no card is asked for. This button stands in for the real checkout.';
 
 export const DISABLED_NOTICE =
-  'AI retouch is not open yet. Nothing is for sale on this build, and the free A4 download is unaffected.';
+  'AI retouch is not open yet. Nothing is for sale on this build, and the free download is unaffected.';
 
 export function checkoutLabel(): string {
   if (CHECKOUT_MODE === 'disabled') return 'Not available yet';

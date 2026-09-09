@@ -153,7 +153,7 @@ export default function Samples() {
       <p className="m-0 mb-5 max-w-[70ch] text-[15px] text-ink-soft">
         Sketches, illustrations, 3D renders, product shots, bold graphics — anything whose shapes
         are already drawn converts beautifully right in your browser. Instant, unlimited, no
-        account, and the A4 file comes out at the same 300 DPI as the paid one.{' '}
+        account, and the file comes out at the same resolution as the paid one.{' '}
         <strong className="text-ink">For these, free is the finished product.</strong>
       </p>
       <div className="grid grid-cols-1 gap-7 md:grid-cols-2">

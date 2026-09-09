@@ -8,17 +8,17 @@
  *                       ever hands back. Decided with the user (2026-09-01): diagonal tile,
  *                       ~14% black, brand name omitted so the tile stays uncluttered.
  *
- *   upscaleToA4         the watermark-free original, enlarged onto an A4 300 DPI canvas at
+ *   upscaleToPaper      the watermark-free original, enlarged onto a 300 DPI sheet at
  *                       delivery. Line art enlarges almost losslessly, so this is a resize,
  *                       never a second model call — §(A) turns on that distinction.
+ *                       The sheet is whatever the buyer picked in the editor and it is
+ *                       stored on the order, so the delivered file matches the preview
+ *                       they bought rather than a hardcoded A4.
  */
 import sharp from 'sharp';
+import { exportSize, type PaperId } from '../../src/utils/paper.js';
 
 const PREVIEW_LONG_EDGE = 800;
-
-/** A4 at 300 DPI. */
-const A4_LONG = 3508;
-const A4_SHORT = 2480;
 
 const WATERMARK_TEXT = 'PREVIEW ONLY — pay to unlock HD';
 
@@ -78,19 +78,24 @@ export async function watermarkedPreview(
     .toBuffer();
 }
 
-export async function upscaleToA4(
+export async function upscaleToPaper(
   original: Uint8Array | ArrayBuffer | Buffer,
+  paper?: PaperId,
+  orientLandscape?: boolean,
 ): Promise<Buffer> {
   const src = toBuffer(original);
-  const meta = await sharp(src).metadata();
-  const landscape = (meta.width ?? 0) > (meta.height ?? 0);
-  const width = landscape ? A4_LONG : A4_SHORT;
-  const height = landscape ? A4_SHORT : A4_LONG;
+  // Fall back to the image's own orientation for orders written before paper was recorded.
+  let landscape = orientLandscape;
+  if (landscape === undefined) {
+    const meta = await sharp(src).metadata();
+    landscape = (meta.width ?? 0) > (meta.height ?? 0);
+  }
+  const { width, height } = exportSize(paper, landscape);
 
   return sharp(src)
     .flatten({ background: '#ffffff' })
-    // `contain` pads to an exact A4 canvas so the delivered PNG prints correctly with no
-    // cropping, whatever aspect the model returned.
+    // `contain` pads to the exact sheet so the delivered PNG prints with no cropping,
+    // whatever aspect the model returned.
     .resize({ width, height, fit: 'contain', background: '#ffffff' })
     .png({ compressionLevel: 9 })
     .toBuffer();
