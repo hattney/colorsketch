@@ -16,7 +16,7 @@
 | 3 | Vercel Blob | ✅ 완료 (09-04) | Claude 대행 |
 | 6b | `CRON_SECRET` | ✅ 완료 (09-04) | Claude 대행 |
 | 4 | Google Gemini 키 | ✅ 완료 (09-04) | 현희님 |
-| 5 | Cloudflare Turnstile | ⚠️ **테스트 키로 임시 운영** — 런칭 전 진짜 키 필요 | 현희님 |
+| 5 | Cloudflare Turnstile | ✅ 완료 (09-09, 진짜 키 검증됨) | 현희님 |
 | **6** | **Resend (선택)** | ⬜ | **현희님** |
 | **7** | **Lemon Squeezy** | ⬜ **다음** | **현희님** |
 | 9 | §7 테스트 9개 | ⬜ | 함께 |
