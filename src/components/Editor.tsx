@@ -43,6 +43,13 @@ interface EditorProps {
   /** Owned by the page so the header bar can recolour with it — see `STAGE_BAR`. */
   stage: Stage;
   onStage: (s: Stage) => void;
+  /**
+   * Pages that were already bought, when `/edit` opens the editor directly rather than the
+   * funnel walking into it. Their presence is what makes the session a paid one: the HD pair
+   * is not produced here, it *is* the delivered files. There is no free stage behind this,
+   * so the way back out is the order link, not `onStage('free')`.
+   */
+  purchased?: Record<StyleVariant, string> | null;
 }
 
 const MODE_LABELS: Record<LineArtMode, { emoji: string; label: string }> = {
@@ -77,7 +84,7 @@ function imageDataToUrl(data: ImageData): string {
   return canvas.toDataURL('image/png');
 }
 
-export default function Editor({ image, onReset, stage, onStage }: EditorProps) {
+export default function Editor({ image, onReset, stage, onStage, purchased }: EditorProps) {
   /**
    * The sheet is the user's choice, not the photo's.
    *
@@ -141,7 +148,11 @@ export default function Editor({ image, onReset, stage, onStage }: EditorProps) 
   const [subject, setSubject] = useState<SubjectModule | null>(null);
   const [otherWord, setOtherWord] = useState('');
   const [demoPreviews, setDemoPreviews] = useState<Record<StyleVariant, string> | null>(null);
-  const [hdPreviews, setHdPreviews] = useState<Record<StyleVariant, string> | null>(null);
+  // Seeded from the delivered files when this is a purchased session, which also stops the
+  // "produce the HD pair" effect from running — there is nothing to produce.
+  const [hdPreviews, setHdPreviews] = useState<Record<StyleVariant, string> | null>(
+    purchased ?? null,
+  );
   /**
    * Set by `/api/ai-preview` when the deployment has Blob + Redis: the server has stored the
    * watermark-free originals under this id and `/api/checkout` (Task 5) starts from it. Null
@@ -156,7 +167,7 @@ export default function Editor({ image, onReset, stage, onStage }: EditorProps) 
   /** True only when the cards on screen came back from the model, not the local tracer. */
   const [usedRealAi, setUsedRealAi] = useState(false);
   /** Per-image, like the price: a new upload is a new order. */
-  const [paid, setPaid] = useState(false);
+  const [paid, setPaid] = useState(Boolean(purchased));
   const [aiImage, setAiImage] = useState<HTMLImageElement | null>(null);
   const [aiVariant, setAiVariant] = useState<StyleVariant | null>(null);
 
@@ -196,12 +207,14 @@ export default function Editor({ image, onReset, stage, onStage }: EditorProps) 
     setSubject(null);
     setOtherWord('');
     setDemoPreviews(null);
-    setHdPreviews(null);
+    // A purchased session keeps its delivered files: this reset exists to clear one
+    // image's work before the next, and the bought pages are not that work.
+    setHdPreviews(purchased ?? null);
     setOrderId(null);
     setCheckoutError(null);
     setAiError(null);
     setUsedRealAi(false);
-    setPaid(false);
+    setPaid(Boolean(purchased));
     setNeedsAi(false);
     setAiImage(null);
     setAiVariant(null);
@@ -1002,7 +1015,7 @@ export default function Editor({ image, onReset, stage, onStage }: EditorProps) 
                   </span>
                 )}
               </div>
-              {backToFree}
+              {!purchased && backToFree}
             </div>
 
             <AiHdPanel

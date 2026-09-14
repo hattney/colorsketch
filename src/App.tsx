@@ -10,6 +10,7 @@ import Uploader from './components/Uploader';
 import OrderRecoveryBanner from './components/OrderRecoveryBanner';
 import RefundPolicy from './pages/RefundPolicy';
 import Terms from './pages/Terms';
+import EditPurchased from './pages/EditPurchased';
 import Thanks from './pages/Thanks';
 import { STAGE_BAR, type Stage } from './utils/aiFlow';
 import { usePath } from './utils/router';
@@ -82,6 +83,7 @@ export default function App() {
   if (path === '/terms') page = <Terms />;
   else if (path === '/refund-policy') page = <RefundPolicy />;
   else if (path === '/thanks') page = <Thanks />;
+  else if (path === '/edit') page = <EditPurchased />;
   else page = <Landing />;
 
   return (

@@ -1,4 +1,4 @@
-import { Download, Printer, RefreshCw } from 'lucide-react';
+import { Download, Pencil, Printer, RefreshCw } from 'lucide-react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { CONTACT_EMAIL } from '../config';
 import { Link } from '../utils/router';
@@ -179,6 +179,13 @@ export default function Thanks() {
                       <Printer className="h-4 w-4" aria-hidden="true" />
                       Print
                     </button>
+                    <a
+                      href={`/edit?order=${encodeURIComponent(orderId)}`}
+                      className="btn btn-ghost btn-sm"
+                    >
+                      <Pencil className="h-4 w-4" aria-hidden="true" />
+                      Edit
+                    </a>
                   </div>
                 ) : (
                   <p className="m-0 text-[12.5px] font-bold text-ink-soft">Still preparing…</p>
