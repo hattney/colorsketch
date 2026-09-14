@@ -1,7 +1,7 @@
 import { ArrowLeft, Download, Eraser, FileText, Printer, RefreshCw, Sparkles, Type, Undo2 } from 'lucide-react';
 import React, { useEffect, useRef, useState } from 'react';
 import { VARIANTS, VARIANT_SETTINGS, type Stage } from '../utils/aiFlow';
-import { AiPreviewError, AiPreviewUnavailable, requestAiPreview } from '../utils/aiPreview';
+import { AiPreviewError, AiPreviewUnavailable, encodeForUpload, requestAiPreview } from '../utils/aiPreview';
 import { analyzeImage, type ImageAnalysis } from '../utils/analyze';
 import { startCheckout } from '../utils/checkout';
 import {
@@ -34,6 +34,8 @@ import {
 } from '../utils/paper';
 import type { StyleVariant, SubjectModule } from '../utils/prompt';
 import { rememberOrder } from '../utils/orderRecovery';
+import { stashPhoto } from '../utils/photoStash';
+import { regeneratePages } from '../utils/regenerate';
 import AiDemoPanel from './AiDemoPanel';
 import AiHdPanel from './AiHdPanel';
 
@@ -44,12 +46,21 @@ interface EditorProps {
   stage: Stage;
   onStage: (s: Stage) => void;
   /**
-   * Pages that were already bought, when `/edit` opens the editor directly rather than the
-   * funnel walking into it. Their presence is what makes the session a paid one: the HD pair
-   * is not produced here, it *is* the delivered files. There is no free stage behind this,
-   * so the way back out is the order link, not `onStage('free')`.
+   * An order that has already been paid for, when `/edit` opens the editor directly rather
+   * than the funnel walking into it. Its presence is what makes the session a paid one: the
+   * HD pair is not produced here, it *is* the delivered files. There is no free stage behind
+   * this, so the way back out is the order link, not `onStage('free')`.
    */
-  purchased?: Record<StyleVariant, string> | null;
+  purchased?: {
+    orderId: string;
+    variants: Record<StyleVariant, string>;
+    /** The pair from before the last redraw, kept so a worse redraw is not a loss. */
+    previous?: Partial<Record<StyleVariant, string>>;
+    regensLeft: number;
+    /** What the order was read as, so a redraw starts from the buyer's own choice. */
+    module?: SubjectModule;
+    otherWord?: string;
+  } | null;
 }
 
 const MODE_LABELS: Record<LineArtMode, { emoji: string; label: string }> = {
@@ -145,13 +156,13 @@ export default function Editor({ image, onReset, stage, onStage, purchased }: Ed
    * tracer, free previews, and a purchased page. Each keeps its own artefacts, so stepping
    * back and forth never shows one stage's output under another stage's promise.
    */
-  const [subject, setSubject] = useState<SubjectModule | null>(null);
-  const [otherWord, setOtherWord] = useState('');
+  const [subject, setSubject] = useState<SubjectModule | null>(purchased?.module ?? null);
+  const [otherWord, setOtherWord] = useState(purchased?.otherWord ?? '');
   const [demoPreviews, setDemoPreviews] = useState<Record<StyleVariant, string> | null>(null);
   // Seeded from the delivered files when this is a purchased session, which also stops the
   // "produce the HD pair" effect from running — there is nothing to produce.
   const [hdPreviews, setHdPreviews] = useState<Record<StyleVariant, string> | null>(
-    purchased ?? null,
+    purchased?.variants ?? null,
   );
   /**
    * Set by `/api/ai-preview` when the deployment has Blob + Redis: the server has stored the
@@ -161,6 +172,11 @@ export default function Editor({ image, onReset, stage, onStage, purchased }: Ed
   const [orderId, setOrderId] = useState<string | null>(null);
   const [isGeneratingDemo, setIsGeneratingDemo] = useState(false);
   const [isGeneratingHd, setIsGeneratingHd] = useState(false);
+  const [regensLeft, setRegensLeft] = useState(purchased?.regensLeft ?? 0);
+  const [previousPreviews, setPreviousPreviews] = useState<Partial<
+    Record<StyleVariant, string>
+  > | null>(purchased?.previous ?? null);
+  const [regenError, setRegenError] = useState<string | null>(null);
   const [isCheckingOut, setIsCheckingOut] = useState(false);
   const [checkoutError, setCheckoutError] = useState<string | null>(null);
   const [aiError, setAiError] = useState<{ message: string; retryable: boolean } | null>(null);
@@ -204,12 +220,12 @@ export default function Editor({ image, onReset, stage, onStage, purchased }: Ed
     setFreePaths([]);
     setAiPaths([]);
     setText('');
-    setSubject(null);
-    setOtherWord('');
+    setSubject(purchased?.module ?? null);
+    setOtherWord(purchased?.otherWord ?? '');
     setDemoPreviews(null);
     // A purchased session keeps its delivered files: this reset exists to clear one
     // image's work before the next, and the bought pages are not that work.
-    setHdPreviews(purchased ?? null);
+    setHdPreviews(purchased?.variants ?? null);
     setOrderId(null);
     setCheckoutError(null);
     setAiError(null);
@@ -384,7 +400,13 @@ export default function Editor({ image, onReset, stage, onStage, purchased }: Ed
       setDemoPreviews(previews);
       setOrderId(newOrderId ?? null);
       // Leave a breadcrumb so a buyer who closes the tab after paying can be brought back.
-      if (newOrderId) rememberOrder(newOrderId);
+      if (newOrderId) {
+        rememberOrder(newOrderId);
+        // Redrawing after payment needs this photo again, and checkout leaves the site. It
+        // stays on this device only — see photoStash.ts for why the server keeps no copy.
+        const upload = encodeForUpload(image);
+        void stashPhoto(newOrderId, upload.base64, upload.mimeType);
+      }
       setUsedRealAi(true);
     } catch (e) {
       if (!(e instanceof AiPreviewUnavailable)) {
@@ -1025,13 +1047,44 @@ export default function Editor({ image, onReset, stage, onStage, purchased }: Ed
               onOtherWord={setOtherWord}
               previews={hdPreviews}
               isGenerating={isGeneratingHd}
-              onRegenerate={() => {
+              regensLeft={purchased ? regensLeft : null}
+              regenError={regenError}
+              previous={previousPreviews}
+              onRegenerate={async () => {
+                setRegenError(null);
                 setAiImage(null);
                 setAiVariant(null);
                 setAiPaths([]);
-                // Both, or the effect below would just hand the old pair straight back.
-                setDemoPreviews(null);
-                setHdPreviews(null);
+
+                if (!purchased) {
+                  // Mock/local session: clear both, or the effect below would just hand the
+                  // old pair straight back.
+                  setDemoPreviews(null);
+                  setHdPreviews(null);
+                  return;
+                }
+
+                setIsGeneratingHd(true);
+                try {
+                  const outcome = await regeneratePages(
+                    purchased.orderId,
+                    subject ?? 'auto',
+                    otherWord,
+                  );
+                  if (outcome.status === 'ok') {
+                    setPreviousPreviews(outcome.previous);
+                    setHdPreviews(outcome.variants as Record<StyleVariant, string>);
+                    setRegensLeft(outcome.regensLeft);
+                  } else if (outcome.status === 'no-photo') {
+                    setRegenError(
+                      'We only keep your photo on the device you bought from, for a day. Open this link there, or upload the photo again to redraw.',
+                    );
+                  } else {
+                    setRegenError(outcome.message);
+                  }
+                } finally {
+                  setIsGeneratingHd(false);
+                }
               }}
               selected={aiVariant}
               onChoose={chooseVariant}

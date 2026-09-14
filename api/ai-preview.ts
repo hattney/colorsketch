@@ -6,6 +6,11 @@ import { blobConfigured, orderImagePath, putBytes } from './_lib/blob.js';
 import { createOrder, type VariantAsset } from './_lib/order.js';
 import { isPaperId, type PaperId } from '../src/utils/paper.js';
 import { recordPreview } from './_lib/ledger.js';
+import {
+  MAX_IMAGE_BYTES,
+  bytesToBase64,
+  generateVariant,
+} from './_lib/model.js';
 import { RedisNotConfigured, redisConfigured } from './_lib/redis.js';
 import { verifyTurnstile } from './_lib/turnstile.js';
 import {
@@ -44,16 +49,6 @@ import {
  */
 export const maxDuration = 60;
 
-const API_BASE = 'https://generativelanguage.googleapis.com/v1beta/models';
-
-/**
- * Verify against Google's current model list before launch — image model names move.
- * Kept in an env var so a swap is a dashboard change, not a deploy.
- */
-const MODEL_ID = process.env.AI_MODEL_ID || 'gemini-2.5-flash-image';
-
-const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
-
 interface PreviewRequest {
   /** Bare base64, no data: prefix. */
   imageBase64?: unknown;
@@ -69,14 +64,6 @@ interface PreviewRequest {
 type VariantResult =
   | { ok: true; bytes: Uint8Array; contentType: string; fromCache: boolean }
   | { ok: false; status: number; error: string };
-
-function base64ToBytes(b64: string): Uint8Array {
-  return new Uint8Array(Buffer.from(b64, 'base64'));
-}
-
-function bytesToBase64(bytes: Uint8Array): string {
-  return Buffer.from(bytes).toString('base64');
-}
 
 const VARIANTS: StyleVariant[] = ['simple', 'detailed'];
 
@@ -94,57 +81,6 @@ const json = (body: unknown, status: number) =>
     status,
     headers: { 'content-type': 'application/json' },
   });
-
-/** Pulls the first inline image out of a generateContent response, whatever casing it used. */
-function extractImage(payload: any): { data: string; mimeType: string } | null {
-  const parts = payload?.candidates?.[0]?.content?.parts;
-  if (!Array.isArray(parts)) return null;
-  for (const part of parts) {
-    const inline = part?.inlineData ?? part?.inline_data;
-    const data = inline?.data;
-    if (typeof data === 'string' && data.length > 0) {
-      return { data, mimeType: inline.mimeType ?? inline.mime_type ?? 'image/png' };
-    }
-  }
-  return null;
-}
-
-/**
- * Why the model returned no image, in the user's words rather than the API's.
- *
- * Deliberately does NOT speculate about the cause. The API reports that a request was
- * blocked, not what about the photo triggered it, so naming a reason would be a guess —
- * and a wrong guess is worse than none: telling a parent that their child's photo raised
- * an impersonation concern is alarming, and telling someone the same about a bouquet makes
- * the product look broken. The one exception is RECITATION, where the API *has* said the
- * output resembled existing work, so a concrete hint is fair.
- *
- * Every refusal points at the free converter, because it still produces a page from the
- * same photo. A dead end here loses a user who had a working option all along.
- */
-function refusalReason(payload: any): { status: number; error: string } {
-  const candidate = payload?.candidates?.[0];
-  const finish = candidate?.finishReason ?? candidate?.finish_reason;
-
-  // 422 means "this image, always" — the client turns off the retry button for it, so the
-  // status and the wording have to agree. Only a genuine block earns it.
-  if (finish === 'RECITATION') {
-    return {
-      status: 422,
-      error:
-        'AI retouch isn’t available for this image. Try a photo you took yourself — your free coloring page still works.',
-    };
-  }
-  if (payload?.promptFeedback?.blockReason || finish === 'SAFETY') {
-    return {
-      status: 422,
-      error:
-        'AI retouch isn’t available for this photo. Try a different image — your free coloring page still works.',
-    };
-  }
-  // No image, but nothing was blocked: a hiccup, and retrying is reasonable.
-  return { status: 502, error: 'AI retouch didn’t return a page this time. Please try again.' };
-}
 
 /** Reads a cached original back out of Blob. Returns null if the blob is gone. */
 async function loadCachedVariant(
@@ -176,39 +112,9 @@ async function renderVariant(
   const hit = await loadCachedVariant(imageHash, selection, variant);
   if (hit) return { ok: true, bytes: hit.bytes, contentType: hit.contentType, fromCache: true };
 
-  const prompt = buildPrompt(selection, variant);
-
-  let res: Response;
-  try {
-    res = await fetch(`${API_BASE}/${MODEL_ID}:generateContent`, {
-      method: 'POST',
-      headers: { 'content-type': 'application/json', 'x-goog-api-key': apiKey },
-      body: JSON.stringify({
-        contents: [
-          { role: 'user', parts: [{ text: prompt }, { inlineData: { mimeType, data: imageBase64 } }] },
-        ],
-      }),
-    });
-  } catch {
-    return { ok: false, status: 502, error: 'Could not reach the retouch service. Please try again.' };
-  }
-
-  if (!res.ok) {
-    // 429 is the one worth passing through honestly: it is temporary and the user can wait.
-    if (res.status === 429) {
-      return { ok: false, status: 429, error: 'The retouch service is busy. Please try again in a minute.' };
-    }
-    return { ok: false, status: 502, error: 'The retouch service returned an error. Please try again.' };
-  }
-
-  const payload = await res.json().catch(() => null);
-  const image = extractImage(payload);
-  if (!image) {
-    const { status, error } = refusalReason(payload);
-    return { ok: false, status, error };
-  }
-
-  const bytes = base64ToBytes(image.data);
+  const produced = await generateVariant(apiKey, imageBase64, mimeType, selection, variant);
+  if (produced.ok === false) return { ok: false, status: produced.status, error: produced.error };
+  const bytes = produced.bytes;
 
   // Best-effort: a cache write that fails (no Redis/Blob yet) must not fail the request.
   try {
@@ -218,13 +124,13 @@ async function renderVariant(
       selection.otherWord,
       variant,
       bytes,
-      image.mimeType,
+      produced.contentType,
     );
   } catch (e) {
     if (!(e instanceof RedisNotConfigured)) console.error('cache write failed', e);
   }
 
-  return { ok: true, bytes, contentType: image.mimeType, fromCache: false };
+  return { ok: true, bytes, contentType: produced.contentType, fromCache: false };
 }
 
 export async function POST(req: Request): Promise<Response> {

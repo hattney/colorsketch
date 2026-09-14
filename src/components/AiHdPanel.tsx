@@ -13,6 +13,14 @@ interface AiHdPanelProps {
   previews: Record<StyleVariant, string> | null;
   isGenerating: boolean;
   onRegenerate: () => void;
+  /**
+   * Redraws still available on a purchased order, or null in a mock/local session where the
+   * redraw is free and unlimited because nothing is being spent.
+   */
+  regensLeft: number | null;
+  regenError: string | null;
+  /** The pair from before the last redraw. Kept downloadable so a worse redraw is not a loss. */
+  previous: Partial<Record<StyleVariant, string>> | null;
   selected: StyleVariant | null;
   onChoose: (variant: StyleVariant, dataUrl: string) => void;
 }
@@ -35,6 +43,9 @@ export default function AiHdPanel({
   previews,
   isGenerating,
   onRegenerate,
+  regensLeft,
+  regenError,
+  previous,
   selected,
   onChoose,
 }: AiHdPanelProps) {
@@ -71,7 +82,7 @@ export default function AiHdPanel({
                 onRegenerate();
                 setIsChanging(false);
               }}
-              disabled={!ready || isGenerating}
+              disabled={!ready || isGenerating || regensLeft === 0}
             >
               <Sparkles className="h-4 w-4" aria-hidden="true" />
               {isGenerating ? 'Redrawing…' : 'Redraw both styles'}
@@ -86,8 +97,9 @@ export default function AiHdPanel({
             </button>
           </div>
           <p className="m-0 mb-5 text-[11px] leading-[1.4] text-ink-soft">
-            Redrawing replaces both pages above. Your purchase covers it — you are not charged
-            again.
+            {regensLeft === 0
+              ? 'You have used both redraws for this order. The pages above are yours to keep.'
+              : 'A redraw makes a new pair and keeps the current one, so you can go back to it. Your purchase covers it — you are not charged again.'}
           </p>
         </>
       ) : (
@@ -99,16 +111,43 @@ export default function AiHdPanel({
             type="button"
             className="chip"
             onClick={() => setIsChanging(true)}
-            disabled={isGenerating}
+            disabled={isGenerating || regensLeft === 0}
           >
             <RotateCcw className="mr-1 inline h-3 w-3" aria-hidden="true" />
-            Change
+            {regensLeft === null
+              ? 'Change'
+              : regensLeft === 0
+                ? 'No redraws left'
+                : `Redraw (${regensLeft} left)`}
           </button>
         </div>
       )}
 
       {isGenerating && (
         <p className="m-0 mb-4 text-[12.5px] font-bold text-ink-soft">Redrawing both styles…</p>
+      )}
+
+      {regenError && !isGenerating && (
+        <p
+          role="alert"
+          className="m-0 mb-4 rounded-lg border-2 border-ink bg-white p-3 text-[12.5px] text-ink-soft"
+        >
+          {regenError}
+        </p>
+      )}
+
+      {previous?.simple && previous?.detailed && !isGenerating && (
+        <div className="mb-5 flex flex-col gap-2.5">
+          <span className="text-xs font-bold text-ink-soft">
+            Earlier draw — still yours, tap to go back to it
+          </span>
+          <VariantCards
+            previews={{ simple: previous.simple, detailed: previous.detailed }}
+            tag="Earlier"
+            selected={null}
+            onChoose={onChoose}
+          />
+        </div>
       )}
 
       {previews && !isGenerating && (

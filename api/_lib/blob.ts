@@ -33,15 +33,24 @@ const DOWNLOAD_NAME: Record<StyleVariant, string> = {
   detailed: 'ColorSketch-Detailed-HD',
 };
 
+/**
+ * `generation` is 0 for the pages the order was delivered with and counts up with each
+ * redraw. It is part of the path rather than an overwrite so the previous pair survives:
+ * a redraw the buyer likes less must not destroy the one they already had. It also lands
+ * in the downloaded filename, which is the cheapest way to tell two drafts apart on disk.
+ */
 export const orderImagePath = (
   orderId: string,
   variant: StyleVariant,
   kind: 'original' | 'hires',
   ext = 'png',
-): string =>
-  kind === 'hires'
-    ? `orders/${orderId}/${DOWNLOAD_NAME[variant]}.${ext}`
-    : `orders/${orderId}/${variant}-original.${ext}`;
+  generation = 0,
+): string => {
+  const suffix = generation > 0 ? `-v${generation + 1}` : '';
+  return kind === 'hires'
+    ? `orders/${orderId}/${DOWNLOAD_NAME[variant]}${suffix}.${ext}`
+    : `orders/${orderId}/${variant}-original${suffix}.${ext}`;
+};
 
 export const cacheImagePath = (
   imageHash: string,

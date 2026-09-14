@@ -2,7 +2,7 @@ import { AlertCircle, RefreshCw } from 'lucide-react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Editor from '../components/Editor';
 import { CONTACT_EMAIL } from '../config';
-import type { StyleVariant } from '../utils/prompt';
+import type { StyleVariant, SubjectModule } from '../utils/prompt';
 import { Link } from '../utils/router';
 
 /**
@@ -26,7 +26,15 @@ type VariantUrls = Partial<Record<StyleVariant, string>>;
 
 type State =
   | { kind: 'loading' }
-  | { kind: 'ready'; image: HTMLImageElement; variants: Record<StyleVariant, string> }
+  | {
+      kind: 'ready';
+      image: HTMLImageElement;
+      variants: Record<StyleVariant, string>;
+      previous?: VariantUrls;
+      regensLeft: number;
+      module?: SubjectModule;
+      otherWord?: string;
+    }
   | { kind: 'not_ready'; status: string }
   | { kind: 'missing' }
   | { kind: 'error' };
@@ -59,7 +67,14 @@ export default function EditPurchased() {
         headers: { accept: 'application/json' },
       });
       const body = (await res.json().catch(() => null)) as
-        | { status?: string; variants?: VariantUrls }
+        | {
+            status?: string;
+            variants?: VariantUrls;
+            previous?: VariantUrls;
+            regensLeft?: number;
+            module?: SubjectModule;
+            otherWord?: string;
+          }
         | null;
 
       if (body?.status !== 'delivered') {
@@ -80,7 +95,17 @@ export default function EditPurchased() {
 
       // Open on Simple; the panel switches to Detailed without another fetch.
       const image = await loadImage(simple);
-      if (!cancelled.current) setState({ kind: 'ready', image, variants: { simple, detailed } });
+      if (!cancelled.current) {
+        setState({
+          kind: 'ready',
+          image,
+          variants: { simple, detailed },
+          previous: body.previous,
+          regensLeft: typeof body.regensLeft === 'number' ? body.regensLeft : 0,
+          module: body.module,
+          otherWord: body.otherWord,
+        });
+      }
     } catch {
       if (!cancelled.current) setState({ kind: 'error' });
     }
@@ -123,7 +148,14 @@ export default function EditPurchased() {
         onReset={() => {
           window.location.assign(`/thanks?order=${encodeURIComponent(orderId)}`);
         }}
-        purchased={state.variants}
+        purchased={{
+          orderId,
+          variants: state.variants,
+          previous: state.previous,
+          regensLeft: state.regensLeft,
+          module: state.module,
+          otherWord: state.otherWord,
+        }}
       />
     );
   }

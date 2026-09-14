@@ -103,7 +103,25 @@ export async function GET(req: Request): Promise<Response> {
       const u = order.variants[v]?.hiResUrl;
       if (u) variants[v] = u;
     }
-    return json({ status: 'delivered', orderId, variants }, 200);
+    // The pair from before the last redraw, so the editor can offer it back.
+    const previous: Partial<Record<StyleVariant, string>> = {};
+    for (const v of VARIANTS) {
+      const u = order.previousVariants?.[v]?.hiResUrl;
+      if (u) previous[v] = u;
+    }
+    return json(
+      {
+        status: 'delivered',
+        orderId,
+        variants,
+        previous: Object.keys(previous).length ? previous : undefined,
+        module: order.module,
+        otherWord: order.otherWord,
+        regensUsed: order.regensUsed ?? 0,
+        regensLeft: Math.max(0, 2 - (order.regensUsed ?? 0)),
+      },
+      200,
+    );
   }
 
   return json({ status: 'not_found' }, 404);

@@ -56,6 +56,13 @@ export interface OrderRecord {
   paper?: PaperId;
   /** Landscape when the buyer had turned the sheet sideways. */
   landscape?: boolean;
+  /** Post-purchase redraws used, capped by `/api/regenerate`. Absent means none. */
+  regensUsed?: number;
+  /**
+   * The pair this order had before the most recent redraw. Exactly one step back — enough to
+   * undo a redraw that came out worse, without turning the order into a gallery.
+   */
+  previousVariants?: Partial<Record<StyleVariant, VariantAsset>>;
   variants: Partial<Record<StyleVariant, VariantAsset>>;
   /** Lemon Squeezy order id, from the webhook. */
   lsOrderId?: string;
