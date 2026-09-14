@@ -28,6 +28,8 @@ interface AiDemoPanelProps {
   aiError: { message: string; retryable: boolean } | null;
   /** Whether the cards below came from the model rather than the local tracer. */
   usedRealAi: boolean;
+  /** The photo these previews are made from, shown so the buyer can confirm it. */
+  sourceUrl: string;
   onBack: () => void;
 }
 
@@ -54,6 +56,7 @@ export default function AiDemoPanel({
   checkoutError,
   aiError,
   usedRealAi,
+  sourceUrl,
   onBack,
 }: AiDemoPanelProps) {
   const ready = isSubjectReady(module, otherWord);
@@ -101,9 +104,35 @@ export default function AiDemoPanel({
         </button>
       </div>
 
-      {/* 1 — the question, wide and first */}
+      {/*
+        1 — the question, wide and first.
+
+        The thumbnail is the one piece of the free stage that belongs here. §28 took the
+        canvas out because showing the finished free page turns this into "what I already
+        have" versus "what I might buy", and that argues against paying. The source photo is
+        not that comparison — it is only "this is the picture we are working from", which is
+        the thing someone who scrolled down here can no longer see and has to take on trust
+        before paying.
+      */}
       <section className="mb-8">
         {step('1', "What's in your photo?", 'This decides how AI reads the image.')}
+        <div className="mb-4 flex items-center gap-3 pl-8">
+          <img
+            src={sourceUrl}
+            alt="The photo your previews are made from"
+            className="h-16 w-16 shrink-0 rounded-lg border-2 border-ink bg-white object-contain"
+          />
+          <p className="m-0 text-[12.5px] text-ink-soft">
+            Making pages from this photo.{' '}
+            <button
+              type="button"
+              onClick={onBack}
+              className="font-bold text-ink underline decoration-2 underline-offset-[3px]"
+            >
+              Use a different one
+            </button>
+          </p>
+        </div>
         <div className="flex flex-wrap gap-2 pl-8" role="group" aria-label="Subject">
           {SUBJECT_CHIPS.map((chip) => (
             <button

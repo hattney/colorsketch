@@ -830,6 +830,7 @@ export default function Editor({ image, onReset, stage, onStage }: EditorProps) 
         checkoutError={checkoutError}
         aiError={aiError}
         usedRealAi={usedRealAi}
+        sourceUrl={image.src}
         onBack={() => onStage('free')}
       />
     );

@@ -33,7 +33,7 @@ export default function VariantCards({ previews, tag, onChoose, selected }: Vari
               <img
                 src={previews[v]}
                 alt={`${VARIANT_LABELS[v].title} style preview`}
-                className="absolute inset-0 h-full w-full object-cover"
+                className="absolute inset-0 h-full w-full object-contain"
               />
               {tag && (
                 <span className="absolute bottom-1 left-1 rounded-[20px] bg-ink px-1.5 py-px text-[9px] font-bold uppercase tracking-[0.08em] text-white">
