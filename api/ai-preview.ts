@@ -5,6 +5,7 @@ import { watermarkedPreview } from './_lib/image.js';
 import { blobConfigured, orderImagePath, putBytes } from './_lib/blob.js';
 import { createOrder, type VariantAsset } from './_lib/order.js';
 import { isPaperId, type PaperId } from '../src/utils/paper.js';
+import { recordPreview } from './_lib/ledger.js';
 import { RedisNotConfigured, redisConfigured } from './_lib/redis.js';
 import { verifyTurnstile } from './_lib/turnstile.js';
 import {
@@ -296,11 +297,15 @@ export async function POST(req: Request): Promise<Response> {
   // purchase includes, and the user can simply retry.
   const originals: { variant: StyleVariant; bytes: Uint8Array; contentType: string }[] = [];
   let allCached = true;
+  let modelCalls = 0;
+  let cachedHits = 0;
   for (let i = 0; i < results.length; i++) {
     const r = results[i];
     if (r.ok === false) return json({ error: r.error }, r.status);
     originals.push({ variant: VARIANTS[i], bytes: r.bytes, contentType: r.contentType });
     allCached &&= r.fromCache;
+    if (r.fromCache) cachedHits++;
+    else modelCalls++;
   }
 
   // Watermark + 800px downscale. This is all the free preview step ever hands back.
@@ -349,6 +354,10 @@ export async function POST(req: Request): Promise<Response> {
   if (await claimFreshInput(ip, imageHash, subjectKey, PREVIEW_WINDOW_SECONDS)) {
     await consumeRateLimit('preview', ip, PREVIEW_WINDOW_SECONDS);
   }
+
+  // Accounting last, and best-effort inside: a ledger write must never cost a buyer
+  // their previews.
+  await recordPreview(modelCalls, cachedHits, orderId ?? undefined);
 
   return new Response(JSON.stringify({ previews, orderId }), {
     status: 200,

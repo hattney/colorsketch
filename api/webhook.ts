@@ -1,5 +1,6 @@
 import crypto from 'node:crypto';
 import { deleteImages } from './_lib/blob.js';
+import { recordRefund, recordSale } from './_lib/ledger.js';
 import { deliverOrder } from './_lib/deliver.js';
 import {
   OrderTransitionError,
@@ -63,6 +64,15 @@ export async function POST(req: Request): Promise<Response> {
     typeof payload.data?.attributes?.user_email === 'string'
       ? (payload.data.attributes.user_email as string)
       : undefined;
+  // What the buyer was actually charged, in USD cents. `total_usd` is already converted;
+  // `total` is store currency, which is USD here but would not be if that ever changed.
+  const attrs = payload.data?.attributes ?? {};
+  const cents =
+    typeof attrs.total_usd === 'number'
+      ? attrs.total_usd
+      : typeof attrs.total === 'number'
+        ? attrs.total
+        : 0;
   const origin = `https://${req.headers.get('host') ?? ''}`;
 
   // A purchase made outside our checkout flow carries no order_id — nothing to fulfil. Ack it.
@@ -103,6 +113,8 @@ export async function POST(req: Request): Promise<Response> {
         }
       }
       await saveOrder(next);
+      // Only on the first application of this event, so a webhook retry cannot double-count.
+      await recordSale(orderId, cents);
     }
     // Fulfil synchronously. `deliverOrder` skips finished variants, so a retry after a
     // timeout resumes rather than restarts.
@@ -119,6 +131,7 @@ export async function POST(req: Request): Promise<Response> {
         return json({ received: true }, 200);
       }
       await saveOrder(applyTransition(marked, 'refunded'));
+      await recordRefund(orderId, cents);
       const urls: Array<string | undefined> = [];
       for (const v of Object.values(marked.variants)) {
         urls.push(v?.originalUrl, v?.hiResUrl);
