@@ -3,10 +3,11 @@
  *
  * Runs under the Node.js runtime, not Edge — `sharp` needs it. Two operations:
  *
- *   watermarkedPreview  the model output, shrunk to an 800px long edge with "PREVIEW ONLY"
- *                       tiled diagonally into the pixels. This is all the free preview step
- *                       ever hands back. Decided with the user (2026-09-01): diagonal tile,
- *                       ~14% black, brand name omitted so the tile stays uncluttered.
+ *   watermarkedPreview  the model output laid on the buyer's sheet, shrunk to an 800px
+ *                       long edge, with "PREVIEW ONLY" tiled diagonally into the pixels.
+ *                       This is all the free preview step ever hands back. Decided with the
+ *                       user (2026-09-01): diagonal tile, ~14% black, brand name omitted so
+ *                       the tile stays uncluttered.
  *
  *   upscaleToPaper      the watermark-free original, enlarged onto a 300 DPI sheet at
  *                       delivery. Line art enlarges almost losslessly, so this is a resize,
@@ -16,7 +17,7 @@
  *                       they bought rather than a hardcoded A4.
  */
 import sharp from 'sharp';
-import { exportSize, type PaperId } from '../../src/utils/paper.js';
+import { exportSize, paperRatio, type PaperId } from '../../src/utils/paper.js';
 
 const PREVIEW_LONG_EDGE = 800;
 
@@ -54,16 +55,33 @@ function toBuffer(bytes: Uint8Array | ArrayBuffer | Buffer): Buffer {
   return Buffer.from(bytes instanceof Uint8Array ? bytes : new Uint8Array(bytes));
 }
 
+/**
+ * The preview someone judges before paying, framed as the page they would get.
+ *
+ * The model returns whatever aspect it feels like, and delivery pads that onto the chosen
+ * sheet. The preview used to skip that step and hand back the bare model output, so the two
+ * were different pictures: a tall result arrived with its margins missing and read as a page
+ * cropped at the top and bottom, which is exactly the complaint it drew. Padding here with
+ * the same `contain` delivery uses makes the preview a scaled copy of the file — margins,
+ * proportions and all — so what is bought is what was looked at.
+ */
 export async function watermarkedPreview(
   original: Uint8Array | ArrayBuffer | Buffer,
+  paper?: PaperId,
+  orientLandscape?: boolean,
 ): Promise<Buffer> {
+  const landscape = orientLandscape ?? false;
+  const ratio = paperRatio(paper);
+  const sheetW = landscape ? PREVIEW_LONG_EDGE : Math.round(PREVIEW_LONG_EDGE / ratio);
+  const sheetH = landscape ? Math.round(PREVIEW_LONG_EDGE / ratio) : PREVIEW_LONG_EDGE;
+
   const resized = await sharp(toBuffer(original))
     .flatten({ background: '#ffffff' })
     .resize({
-      width: PREVIEW_LONG_EDGE,
-      height: PREVIEW_LONG_EDGE,
-      fit: 'inside',
-      withoutEnlargement: true,
+      width: sheetW,
+      height: sheetH,
+      fit: 'contain',
+      background: '#ffffff',
     })
     .png()
     .toBuffer();

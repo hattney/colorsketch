@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import Editor from './components/Editor';
 import Faq from './components/Faq';
 import Footer from './components/Footer';
@@ -29,6 +29,7 @@ function Landing() {
    */
   const [stage, setStage] = useState<Stage>('free');
   const bar = STAGE_BAR[stage];
+  const panelRef = useRef<HTMLDivElement>(null);
 
   const openImage = (img: HTMLImageElement) => {
     setStage('free');
@@ -41,8 +42,13 @@ function Landing() {
       <Hero />
       <Steps />
 
+      {/*
+        scroll-mt clears the sticky header, so the panel's own title bar is the first thing
+        under it rather than the first thing hidden by it.
+      */}
       <div
-        className="my-14 overflow-hidden rounded-[14px] border-[2.5px] border-ink bg-white"
+        ref={panelRef}
+        className="my-14 scroll-mt-24 overflow-hidden rounded-[14px] border-[2.5px] border-ink bg-white"
         style={{ boxShadow: '7px 7px 0 var(--ink)' }}
       >
         <div
@@ -63,6 +69,15 @@ function Landing() {
             onReset={() => {
               setImage(null);
               setStage('free');
+              /*
+               * Swapping the editor back for the uploader in place is invisible from where
+               * the button is: by then the panel is a screen and a half tall and the link is
+               * at the bottom of it, so the drop zone appears far above the viewport and the
+               * page looks like it merely blinked. Put it back under their eyes.
+               */
+              requestAnimationFrame(() =>
+                panelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
+              );
             }}
           />
         ) : (

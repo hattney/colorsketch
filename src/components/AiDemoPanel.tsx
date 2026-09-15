@@ -9,6 +9,7 @@ import {
   isCheckoutOpen,
   isMockCheckout,
 } from '../utils/checkout';
+import type { PaperId } from '../utils/paper';
 import { SUBJECT_CHIPS, buildPrompt, type StyleVariant, type SubjectModule } from '../utils/prompt';
 import { isSubjectReady } from './SubjectPicker';
 import Turnstile, { turnstileRequired } from './Turnstile';
@@ -30,6 +31,9 @@ interface AiDemoPanelProps {
   usedRealAi: boolean;
   /** The photo these previews are made from, shown so the buyer can confirm it. */
   sourceUrl: string;
+  /** The sheet the pages are for, so a card is shaped like the page it shows. */
+  paper: PaperId;
+  landscape: boolean;
   onBack: () => void;
 }
 
@@ -57,6 +61,8 @@ export default function AiDemoPanel({
   aiError,
   usedRealAi,
   sourceUrl,
+  paper,
+  landscape,
   onBack,
 }: AiDemoPanelProps) {
   const ready = isSubjectReady(module, otherWord);
@@ -289,7 +295,12 @@ export default function AiDemoPanel({
                 </div>
               )}
               <div className="max-w-[520px]">
-                <VariantCards previews={previews} tag={usedRealAi ? 'Preview' : 'Not AI'} />
+                <VariantCards
+                  previews={previews}
+                  tag={usedRealAi ? 'Preview' : 'Not AI'}
+                  paper={paper}
+                  landscape={landscape}
+                />
               </div>
               <div className="mt-3">
                 {turnstileRequired && (

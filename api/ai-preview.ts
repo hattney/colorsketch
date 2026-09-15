@@ -217,7 +217,7 @@ export async function POST(req: Request): Promise<Response> {
   // Watermark + 800px downscale. This is all the free preview step ever hands back.
   const previews: Partial<Record<StyleVariant, string>> = {};
   for (const o of originals) {
-    const wm = await watermarkedPreview(o.bytes);
+    const wm = await watermarkedPreview(o.bytes, paper, landscape);
     previews[o.variant] = `data:image/png;base64,${bytesToBase64(wm)}`;
   }
 

@@ -60,6 +60,9 @@ interface EditorProps {
     /** What the order was read as, so a redraw starts from the buyer's own choice. */
     module?: SubjectModule;
     otherWord?: string;
+    /** The sheet the delivered pages are already on. */
+    paper?: PaperId;
+    landscape?: boolean;
   } | null;
 }
 
@@ -105,10 +108,13 @@ export default function Editor({ image, onReset, stage, onStage, purchased }: Ed
    * still promised a portrait one. Size was not a choice at all: A4 only, on a site whose
    * audience mostly has US Letter in the tray.
    */
-  const [paper, setPaper] = useState<PaperId>(DEFAULT_PAPER);
-  const [orientation, setOrientation] = useState<Orientation>(
-    image.width > image.height ? 'landscape' : 'portrait',
-  );
+  const [paper, setPaper] = useState<PaperId>(purchased?.paper ?? DEFAULT_PAPER);
+  const [orientation, setOrientation] = useState<Orientation>(() => {
+    // A purchased page was already laid out on a sheet at delivery; opening it on a
+    // different one would re-frame the file the buyer actually owns.
+    if (purchased?.landscape !== undefined) return purchased.landscape ? 'landscape' : 'portrait';
+    return image.width > image.height ? 'landscape' : 'portrait';
+  });
   const isLandscape = orientation === 'landscape';
   const SHEET_RATIO = paperRatio(paper);
 
@@ -141,7 +147,15 @@ export default function Editor({ image, onReset, stage, onStage, purchased }: Ed
   const [freePaths, setFreePaths] = useState<ErasePath[]>([]);
   const [aiPaths, setAiPaths] = useState<ErasePath[]>([]);
   const [currentPath, setCurrentPath] = useState<ErasePath | null>(null);
-  const [isDrawing, setIsDrawing] = useState(false);
+  /**
+   * The stroke being drawn right now, held in a ref as well as in state.
+   *
+   * The handlers used to read it straight out of state, which is always a frame behind. A
+   * dab — pointer down and up inside one frame, which is exactly what erasing looks like on
+   * a phone — reached `stopDrawing` before the state had flushed, so it was dropped: nothing
+   * was erased, and Undo never had a stroke to offer.
+   */
+  const livePath = useRef<ErasePath | null>(null);
 
   // Text state
   const [text, setText] = useState('');
@@ -236,6 +250,27 @@ export default function Editor({ image, onReset, stage, onStage, purchased }: Ed
     setAiVariant(null);
     qualityKey.current = null;
 
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [image]);
+
+  /**
+   * The two style thumbnails, drawn on their own schedule rather than as part of the
+   * per-image reset above.
+   *
+   * A canvas is wiped whenever its width or height attribute changes, and both follow the
+   * chosen sheet — so picking A4, or turning the page landscape, blanked both cards and left
+   * them blank until the next upload, because the only effect that filled them was keyed on
+   * the image. Stepping out to the AI screen and back did the same thing by a different
+   * route: the cards unmount with the free sidebar and come back empty. Redrawing whenever
+   * the canvases can have been reset covers both.
+   */
+  useEffect(() => {
+    if (stage !== 'free') return;
+    let cancelled = false;
+
     const renderThumb = async (thumbMode: LineArtMode) => {
       const data = await renderLineArtAsync(
         image,
@@ -256,7 +291,7 @@ export default function Editor({ image, onReset, stage, onStage, purchased }: Ed
       cancelled = true;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [image]);
+  }, [image, stage, paper, THUMB_WIDTH, THUMB_HEIGHT]);
 
   // --- Debounced main preview processing (in worker, stale results dropped) ---
   useEffect(() => {
@@ -490,7 +525,14 @@ export default function Editor({ image, onReset, stage, onStage, purchased }: Ed
     }
   };
 
-  // --- Render preview canvas: the same compose path the download uses, just smaller ---
+  /*
+   * --- Render preview canvas: the same compose path the download uses, just smaller ---
+   *
+   * `stage` and the sheet size are dependencies because both can empty the canvas without
+   * changing anything this draws: the AI screen replaces the whole split layout, so coming
+   * back mounts a fresh blank canvas, and changing paper rewrites its width and height, which
+   * wipes it. Either way the trace is still valid and simply has to be put back on.
+   */
   useEffect(() => {
     const canvas = canvasRef.current;
     if (!canvas || !processedImageData) return;
@@ -501,7 +543,7 @@ export default function Editor({ image, onReset, stage, onStage, purchased }: Ed
     });
     canvas.getContext('2d')?.drawImage(composed, 0, 0);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [processedImageData, paths, currentPath, text]);
+  }, [processedImageData, paths, currentPath, text, stage, PREVIEW_WIDTH, PREVIEW_HEIGHT]);
 
   // --- Drawing handlers ---
   const getCoordinates = (e: React.MouseEvent | React.TouchEvent): Point | null => {
@@ -530,22 +572,29 @@ export default function Editor({ image, onReset, stage, onStage, purchased }: Ed
     e.preventDefault();
     const point = getCoordinates(e);
     if (!point) return;
-    setIsDrawing(true);
-    setCurrentPath({ points: [point], size: eraserSize });
+    const path: ErasePath = { points: [point], size: eraserSize };
+    livePath.current = path;
+    setCurrentPath(path);
   };
 
   const draw = (e: React.MouseEvent | React.TouchEvent) => {
-    if (!isDrawing || !isEraserMode || !currentPath) return;
+    if (!isEraserMode || !livePath.current) return;
     e.preventDefault();
     const point = getCoordinates(e);
     if (!point) return;
-    setCurrentPath((prev) => (prev ? { ...prev, points: [...prev.points, point] } : null));
+    const path: ErasePath = {
+      ...livePath.current,
+      points: [...livePath.current.points, point],
+    };
+    livePath.current = path;
+    setCurrentPath(path);
   };
 
   const stopDrawing = () => {
-    if (!isDrawing || !currentPath) return;
-    setIsDrawing(false);
-    setPaths((prev) => [...prev, currentPath]);
+    const path = livePath.current;
+    if (!path) return;
+    livePath.current = null;
+    setPaths((prev) => [...prev, path]);
     setCurrentPath(null);
   };
 
@@ -627,6 +676,14 @@ export default function Editor({ image, onReset, stage, onStage, purchased }: Ed
   const chooseVariant = (variant: StyleVariant, dataUrl: string) => {
     if (variant === aiVariant) return;
     const img = new Image();
+    /*
+     * The purchased pages are served from Blob, so loading one without this taints the
+     * canvas: every `getImageData` under it throws, the tracer stops producing frames, and
+     * the editor silently freezes on whatever it last drew — the handles appear dead and the
+     * style never changes. Blob sends `Access-Control-Allow-Origin: *`, so asking for the
+     * image this way costs nothing. Harmless on the local stand-in's data: URLs.
+     */
+    img.crossOrigin = 'anonymous';
     img.onload = () => {
       setAiVariant(variant);
       setAiImage(img);
@@ -718,8 +775,8 @@ export default function Editor({ image, onReset, stage, onStage, purchased }: Ed
       </div>
 
       <p className="m-0 mb-5 text-[11.5px] leading-[1.4] text-ink-soft">
-        Thickness is measured on the printed page, so what you see here is exactly what comes
-        out of the printer.
+        Thickness is measured on the printed page, so what you see here is exactly what comes out of
+        the printer.
       </p>
     </>
   );
@@ -753,7 +810,8 @@ export default function Editor({ image, onReset, stage, onStage, purchased }: Ed
           </button>
         </div>
       </div>
-      {isEraserMode && slider('Brush size', eraserSize, String(eraserSize), 5, 50, 1, setEraserSize)}
+      {isEraserMode &&
+        slider('Brush size', eraserSize, String(eraserSize), 5, 50, 1, setEraserSize)}
       {paths.length > 0 && (
         <p className="m-0 text-[11.5px] text-ink-soft">
           {paths.length} erased {paths.length === 1 ? 'stroke' : 'strokes'}
@@ -827,7 +885,11 @@ export default function Editor({ image, onReset, stage, onStage, purchased }: Ed
   );
 
   const backToFree = (
-    <button type="button" onClick={() => onStage('free')} className="btn btn-inline btn-ghost btn-sm">
+    <button
+      type="button"
+      onClick={() => onStage('free')}
+      className="btn btn-inline btn-ghost btn-sm"
+    >
       <ArrowLeft className="h-4 w-4" aria-hidden="true" />
       Free editor
     </button>
@@ -842,6 +904,53 @@ export default function Editor({ image, onReset, stage, onStage, purchased }: Ed
       >
         Start over with a different image
       </button>
+    </div>
+  );
+
+  /**
+   * The upsell, across the foot of the whole panel rather than down the end of the sidebar.
+   *
+   * Its place in the flow was right — after someone has seen their own page and can judge
+   * whether it is good enough — but its place on the screen was not. In a 340px column,
+   * under the download buttons, it landed below the fold of a panel whose other half is an
+   * empty dot grid: the loudest offer on the page was the least visible thing on it. The
+   * same card spanning both columns is read without scrolling and has room to say what it
+   * is on one line.
+   */
+  const aiCallout = (
+    <div className="magic-card flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:gap-8">
+      <div className="min-w-0">
+        <div className="mb-1 font-display text-[16.5px] font-bold">
+          {paid
+            ? 'Your HD pages are unlocked'
+            : recommendAi
+              ? 'This one is a hard photo to trace'
+              : 'Not happy with this page?'}
+        </div>
+        <p className="m-0 max-w-[62ch] text-[13px] leading-[1.5] text-ink-soft">
+          {paid
+            ? 'Both AI styles are already paid for on this image. Open the HD editor to finish either one.'
+            : recommendAi
+              ? 'It is mostly soft gradient, so there is little for the free tracer to follow. Let AI redraw it as bold, closed outlines instead.'
+              : 'Let AI redraw your photo from scratch as bold, closed outlines — the kind of page that is a pleasure to color.'}
+        </p>
+      </div>
+      <div className="shrink-0 sm:text-right">
+        <button
+          type="button"
+          onClick={() => onStage(paid ? 'ai-hd' : 'ai-demo')}
+          className="btn btn-magic btn-inline"
+        >
+          <Sparkles className="h-5 w-5" aria-hidden="true" />
+          {paid ? 'Open the HD editor' : 'Try the AI converter'}
+        </button>
+        {!paid && (
+          <p className="m-0 mt-2 text-[11.5px] leading-[1.4] text-ink-soft">
+            Two previews, free to look at.
+            <br className="hidden sm:inline" /> Your free download stays free either way.
+          </p>
+        )}
+      </div>
     </div>
   );
 
@@ -866,256 +975,249 @@ export default function Editor({ image, onReset, stage, onStage, purchased }: Ed
         aiError={aiError}
         usedRealAi={usedRealAi}
         sourceUrl={image.src}
+        paper={paper}
+        landscape={isLandscape}
         onBack={() => onStage('free')}
       />
     );
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px]">
-      {/* Canvas Area */}
-      {/*
+    <>
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_340px]">
+        {/* Canvas Area */}
+        {/*
         items-start matters: a flex child stretches to the row height by default, which
         overrode the sheet's aspect-ratio and left the page tall and half empty. It also
         threw the eraser off, since pointer coordinates are normalized against the element
         while the drawing sits letterboxed inside it.
       */}
-      <div className="dot-grid relative flex items-start justify-center p-6 sm:p-8">
-        {busy && (
-          <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/60">
-            <div className="flex flex-col items-center gap-3">
-              <RefreshCw className="h-8 w-8 animate-spin" aria-hidden="true" />
-              <span className="text-sm font-bold">
-                {isExporting ? 'Preparing full-resolution file…' : 'Processing…'}
-              </span>
+        <div className="dot-grid relative flex items-start justify-center p-6 sm:p-8">
+          {busy && (
+            <div className="absolute inset-0 z-10 flex items-center justify-center bg-white/60">
+              <div className="flex flex-col items-center gap-3">
+                <RefreshCw className="h-8 w-8 animate-spin" aria-hidden="true" />
+                <span className="text-sm font-bold">
+                  {isExporting ? 'Preparing full-resolution file…' : 'Processing…'}
+                </span>
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        <div
-          className="relative rounded-md border-[2.5px] border-ink bg-white"
-          style={{
-            width: '100%',
-            maxWidth: isLandscape ? '620px' : '440px',
-            aspectRatio: isLandscape ? '1.414 / 1' : '1 / 1.414',
-            boxShadow: '6px 6px 0 rgba(20,20,20,.14)',
-          }}
-        >
-          <canvas
-            ref={canvasRef}
-            width={PREVIEW_WIDTH}
-            height={PREVIEW_HEIGHT}
-            className={`h-full w-full object-contain ${isEraserMode ? 'cursor-crosshair' : 'cursor-default'}`}
-            onMouseDown={startDrawing}
-            onMouseMove={draw}
-            onMouseUp={stopDrawing}
-            onMouseLeave={stopDrawing}
-            onTouchStart={startDrawing}
-            onTouchMove={draw}
-            onTouchEnd={stopDrawing}
-          />
+          <div
+            className="relative rounded-md border-[2.5px] border-ink bg-white"
+            style={{
+              width: '100%',
+              maxWidth: isLandscape ? '620px' : '440px',
+              aspectRatio: isLandscape ? '1.414 / 1' : '1 / 1.414',
+              boxShadow: '6px 6px 0 rgba(20,20,20,.14)',
+            }}
+          >
+            <canvas
+              ref={canvasRef}
+              width={PREVIEW_WIDTH}
+              height={PREVIEW_HEIGHT}
+              className={`h-full w-full object-contain ${isEraserMode ? 'cursor-crosshair' : 'cursor-default'}`}
+              onMouseDown={startDrawing}
+              onMouseMove={draw}
+              onMouseUp={stopDrawing}
+              onMouseLeave={stopDrawing}
+              onTouchStart={startDrawing}
+              onTouchMove={draw}
+              onTouchEnd={stopDrawing}
+            />
+          </div>
+        </div>
+
+        {/* Controls Area — exactly one of the three stages, never two stacked */}
+        <div className="border-t-[2.5px] border-ink p-5 lg:border-l-[2.5px] lg:border-t-0">
+          {stage === 'free' && (
+            <>
+              <div className="mb-4 flex items-center justify-between gap-2">
+                <h4 className="m-0 font-display text-sm font-bold">Free editor</h4>
+                {/* Quiet doorway. The loud invitation lives beside the download, where someone
+                  has actually seen their page and can judge it. */}
+                <button
+                  type="button"
+                  onClick={() => onStage(paid ? 'ai-hd' : 'ai-demo')}
+                  className="btn btn-inline btn-ghost btn-sm"
+                  title={paid ? 'Back to your HD page' : 'Open the AI page editor'}
+                >
+                  <Sparkles className="h-4 w-4" aria-hidden="true" />
+                  {paid ? 'HD page' : 'AI preview'}
+                </button>
+              </div>
+
+              <h4 className="m-0 mb-3 font-display text-sm font-bold">Pick a style</h4>
+              <div className="mb-5 grid grid-cols-2 gap-3">
+                {(['illustration', 'photo'] as LineArtMode[]).map((m) => (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={() => setMode(m)}
+                    aria-pressed={mode === m}
+                    className="overflow-hidden rounded-lg border-[2.5px] border-ink bg-white text-left"
+                    style={mode === m ? { boxShadow: '4px 4px 0 var(--crayon-green)' } : undefined}
+                  >
+                    <canvas
+                      ref={thumbRefs[m]}
+                      width={THUMB_WIDTH}
+                      height={THUMB_HEIGHT}
+                      className="w-full bg-white"
+                      style={{
+                        aspectRatio: isLandscape ? '1.414 / 1' : '1 / 1.414',
+                      }}
+                    />
+                    <span
+                      className={`flex items-center justify-between border-t-[2.5px] border-ink px-2 py-1.5 text-[11.5px] font-bold ${
+                        mode === m ? 'text-white' : 'text-ink'
+                      }`}
+                      style={mode === m ? { background: 'var(--crayon-green)' } : undefined}
+                    >
+                      <span>
+                        {MODE_LABELS[m].emoji} {MODE_LABELS[m].label}
+                      </span>
+                      {analysis?.recommendedMode === m && (
+                        <span className="text-[9px] uppercase tracking-wider opacity-80">Auto</span>
+                      )}
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              {adjustBlock}
+              <hr className="mb-5 border-0 border-t-2 border-ink/15" />
+              {eraserBlock}
+              {textBlock}
+              {paperBlock}
+
+              <div className="flex flex-col gap-3">
+                <button type="button" onClick={handleDownload} disabled={busy} className="btn">
+                  <Download className="h-5 w-5" aria-hidden="true" />
+                  Download — free
+                </button>
+                <button
+                  type="button"
+                  onClick={handlePrint}
+                  disabled={busy}
+                  className="btn btn-ghost"
+                >
+                  <Printer className="h-5 w-5" aria-hidden="true" />
+                  Print directly
+                </button>
+              </div>
+            </>
+          )}
+
+          {stage === 'ai-hd' && (
+            <>
+              <div className="mb-4 flex items-start justify-between gap-2">
+                <div>
+                  <h4 className="m-0 font-display text-sm font-bold">✦ AI HD editor</h4>
+                  {aiVariant && (
+                    <span className="text-xs text-ink-soft">
+                      Style: {aiVariant === 'simple' ? 'Simple' : 'Detailed'}
+                    </span>
+                  )}
+                </div>
+                {!purchased && backToFree}
+              </div>
+
+              <AiHdPanel
+                module={subject}
+                onModule={setSubject}
+                otherWord={otherWord}
+                onOtherWord={setOtherWord}
+                previews={hdPreviews}
+                isGenerating={isGeneratingHd}
+                regensLeft={purchased ? regensLeft : null}
+                regenError={regenError}
+                previous={previousPreviews}
+                onRegenerate={async () => {
+                  setRegenError(null);
+                  setAiImage(null);
+                  setAiVariant(null);
+                  setAiPaths([]);
+
+                  if (!purchased) {
+                    // Mock/local session: clear both, or the effect below would just hand the
+                    // old pair straight back.
+                    setDemoPreviews(null);
+                    setHdPreviews(null);
+                    return;
+                  }
+
+                  setIsGeneratingHd(true);
+                  try {
+                    const outcome = await regeneratePages(
+                      purchased.orderId,
+                      subject ?? 'auto',
+                      otherWord,
+                    );
+                    if (outcome.status === 'ok') {
+                      setPreviousPreviews(outcome.previous);
+                      setHdPreviews(outcome.variants as Record<StyleVariant, string>);
+                      setRegensLeft(outcome.regensLeft);
+                    } else if (outcome.status === 'no-photo') {
+                      setRegenError(
+                        'We only keep your photo on the device you bought from, for a day. Open this link there, or upload the photo again to redraw.',
+                      );
+                    } else {
+                      setRegenError(outcome.message);
+                    }
+                  } finally {
+                    setIsGeneratingHd(false);
+                  }
+                }}
+                selected={aiVariant}
+                onChoose={chooseVariant}
+                paper={paper}
+                landscape={isLandscape}
+              />
+
+              {isHdEditing && (
+                <>
+                  <hr className="mb-5 border-0 border-t-2 border-ink/15" />
+                  {adjustBlock}
+                  <hr className="mb-5 border-0 border-t-2 border-ink/15" />
+                  {eraserBlock}
+                  {textBlock}
+                  {paperBlock}
+
+                  <div className="flex flex-col gap-3">
+                    <button type="button" onClick={handleDownload} disabled={busy} className="btn">
+                      <Download className="h-5 w-5" aria-hidden="true" />
+                      Download HD
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handlePrint}
+                      disabled={busy}
+                      className="btn btn-ghost"
+                    >
+                      <Printer className="h-5 w-5" aria-hidden="true" />
+                      Print directly
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {startOver}
+            </>
+          )}
         </div>
       </div>
 
-      {/* Controls Area — exactly one of the three stages, never two stacked */}
-      <div className="border-t-[2.5px] border-ink p-5 lg:border-l-[2.5px] lg:border-t-0">
-        {stage === 'free' && (
-          <>
-            <div className="mb-4 flex items-center justify-between gap-2">
-              <h4 className="m-0 font-display text-sm font-bold">Free editor</h4>
-              {/* Quiet doorway. The loud invitation lives beside the download, where someone
-                  has actually seen their page and can judge it. */}
-              <button
-                type="button"
-                onClick={() => onStage(paid ? 'ai-hd' : 'ai-demo')}
-                className="btn btn-inline btn-ghost btn-sm"
-                title={paid ? 'Back to your HD page' : 'Open the AI page editor'}
-              >
-                <Sparkles className="h-4 w-4" aria-hidden="true" />
-                {paid ? 'HD page' : 'AI preview'}
-              </button>
-            </div>
-
-            <h4 className="m-0 mb-3 font-display text-sm font-bold">Pick a style</h4>
-            <div className="mb-5 grid grid-cols-2 gap-3">
-              {(['illustration', 'photo'] as LineArtMode[]).map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => setMode(m)}
-                  aria-pressed={mode === m}
-                  className="overflow-hidden rounded-lg border-[2.5px] border-ink bg-white text-left"
-                  style={mode === m ? { boxShadow: '4px 4px 0 var(--crayon-green)' } : undefined}
-                >
-                  <canvas
-                    ref={thumbRefs[m]}
-                    width={THUMB_WIDTH}
-                    height={THUMB_HEIGHT}
-                    className="w-full bg-white"
-                    style={{ aspectRatio: isLandscape ? '1.414 / 1' : '1 / 1.414' }}
-                  />
-                  <span
-                    className={`flex items-center justify-between border-t-[2.5px] border-ink px-2 py-1.5 text-[11.5px] font-bold ${
-                      mode === m ? 'text-white' : 'text-ink'
-                    }`}
-                    style={mode === m ? { background: 'var(--crayon-green)' } : undefined}
-                  >
-                    <span>
-                      {MODE_LABELS[m].emoji} {MODE_LABELS[m].label}
-                    </span>
-                    {analysis?.recommendedMode === m && (
-                      <span className="text-[9px] uppercase tracking-wider opacity-80">Auto</span>
-                    )}
-                  </span>
-                </button>
-              ))}
-            </div>
-
-            {adjustBlock}
-            <hr className="mb-5 border-0 border-t-2 border-ink/15" />
-            {eraserBlock}
-            {textBlock}
-            {paperBlock}
-
-            <div className="flex flex-col gap-3">
-              <button type="button" onClick={handleDownload} disabled={busy} className="btn">
-                <Download className="h-5 w-5" aria-hidden="true" />
-                Download — free
-              </button>
-              <button type="button" onClick={handlePrint} disabled={busy} className="btn btn-ghost">
-                <Printer className="h-5 w-5" aria-hidden="true" />
-                Print directly
-              </button>
-            </div>
-
-            {/*
-              The upsell belongs here and nowhere else: right after someone has seen their own
-              page and can decide whether it is good enough. Asking before that is guessing.
-            */}
-            <div className="magic-card mt-4 p-4">
-              <div className="mb-1 font-display text-[14.5px] font-bold">
-                {paid
-                  ? 'Your HD pages are unlocked'
-                  : recommendAi
-                    ? 'This one is a hard photo to trace'
-                    : 'Not happy with this page?'}
-              </div>
-              <p className="m-0 mb-3 text-[12.5px] leading-[1.45] text-ink-soft">
-                {paid
-                  ? 'Both AI styles are already paid for on this image. Open the HD editor to finish either one.'
-                  : recommendAi
-                    ? 'It is mostly soft gradient, so there is little for the free tracer to follow. Let AI redraw it as bold, closed outlines instead.'
-                    : 'Let AI redraw your photo from scratch as bold, closed outlines — the kind of page that is a pleasure to color.'}
-              </p>
-              <button
-                type="button"
-                onClick={() => onStage(paid ? 'ai-hd' : 'ai-demo')}
-                className="btn btn-magic btn-sm"
-              >
-                <Sparkles className="h-4 w-4" aria-hidden="true" />
-                {paid ? 'Open the HD editor' : 'Try the AI converter'}
-              </button>
-              {!paid && (
-                <p className="m-0 mt-2 text-[11px] leading-[1.4] text-ink-soft">
-                  Two previews, free to look at. Your free download stays free either way.
-                </p>
-              )}
-            </div>
-
-            {startOver}
-          </>
-        )}
-
-        {stage === 'ai-hd' && (
-          <>
-            <div className="mb-4 flex items-start justify-between gap-2">
-              <div>
-                <h4 className="m-0 font-display text-sm font-bold">✦ AI HD editor</h4>
-                {aiVariant && (
-                  <span className="text-xs text-ink-soft">
-                    Style: {aiVariant === 'simple' ? 'Simple' : 'Detailed'}
-                  </span>
-                )}
-              </div>
-              {!purchased && backToFree}
-            </div>
-
-            <AiHdPanel
-              module={subject}
-              onModule={setSubject}
-              otherWord={otherWord}
-              onOtherWord={setOtherWord}
-              previews={hdPreviews}
-              isGenerating={isGeneratingHd}
-              regensLeft={purchased ? regensLeft : null}
-              regenError={regenError}
-              previous={previousPreviews}
-              onRegenerate={async () => {
-                setRegenError(null);
-                setAiImage(null);
-                setAiVariant(null);
-                setAiPaths([]);
-
-                if (!purchased) {
-                  // Mock/local session: clear both, or the effect below would just hand the
-                  // old pair straight back.
-                  setDemoPreviews(null);
-                  setHdPreviews(null);
-                  return;
-                }
-
-                setIsGeneratingHd(true);
-                try {
-                  const outcome = await regeneratePages(
-                    purchased.orderId,
-                    subject ?? 'auto',
-                    otherWord,
-                  );
-                  if (outcome.status === 'ok') {
-                    setPreviousPreviews(outcome.previous);
-                    setHdPreviews(outcome.variants as Record<StyleVariant, string>);
-                    setRegensLeft(outcome.regensLeft);
-                  } else if (outcome.status === 'no-photo') {
-                    setRegenError(
-                      'We only keep your photo on the device you bought from, for a day. Open this link there, or upload the photo again to redraw.',
-                    );
-                  } else {
-                    setRegenError(outcome.message);
-                  }
-                } finally {
-                  setIsGeneratingHd(false);
-                }
-              }}
-              selected={aiVariant}
-              onChoose={chooseVariant}
-            />
-
-            {isHdEditing && (
-              <>
-                <hr className="mb-5 border-0 border-t-2 border-ink/15" />
-                {adjustBlock}
-                <hr className="mb-5 border-0 border-t-2 border-ink/15" />
-                {eraserBlock}
-                {textBlock}
-                {paperBlock}
-
-                <div className="flex flex-col gap-3">
-                  <button type="button" onClick={handleDownload} disabled={busy} className="btn">
-                    <Download className="h-5 w-5" aria-hidden="true" />
-                    Download HD
-                  </button>
-                  <button type="button" onClick={handlePrint} disabled={busy} className="btn btn-ghost">
-                    <Printer className="h-5 w-5" aria-hidden="true" />
-                    Print directly
-                  </button>
-                </div>
-              </>
-            )}
-
-            {startOver}
-          </>
-        )}
-      </div>
-    </div>
+      {/*
+        The foot of the panel, across its whole width. Only the free stage shows it: once a
+        page is bought the offer is behind them, and the paid sidebar carries its own way out.
+      */}
+      {stage === 'free' && (
+        <div className="border-t-[2.5px] border-ink p-5 sm:p-6">
+          {aiCallout}
+          {startOver}
+        </div>
+      )}
+    </>
   );
 }

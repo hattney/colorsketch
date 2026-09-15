@@ -117,6 +117,10 @@ export async function GET(req: Request): Promise<Response> {
         previous: Object.keys(previous).length ? previous : undefined,
         module: order.module,
         otherWord: order.otherWord,
+        // The delivered PNG is already on this sheet. Without it the paid editor opened on
+        // the default one and re-exported an A4 buyer's page onto Letter.
+        paper: order.paper,
+        landscape: order.landscape,
         regensUsed: order.regensUsed ?? 0,
         regensLeft: Math.max(0, 2 - (order.regensUsed ?? 0)),
       },

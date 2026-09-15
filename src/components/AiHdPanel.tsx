@@ -1,6 +1,7 @@
 import { RotateCcw, Sparkles } from 'lucide-react';
 import React, { useState } from 'react';
 import { isMockCheckout } from '../utils/checkout';
+import type { PaperId } from '../utils/paper';
 import { SUBJECT_CHIPS, type StyleVariant, type SubjectModule } from '../utils/prompt';
 import SubjectPicker, { isSubjectReady } from './SubjectPicker';
 import VariantCards from './VariantCards';
@@ -23,6 +24,9 @@ interface AiHdPanelProps {
   previous: Partial<Record<StyleVariant, string>> | null;
   selected: StyleVariant | null;
   onChoose: (variant: StyleVariant, dataUrl: string) => void;
+  /** The sheet the pages are for, so a card is shaped like the page it shows. */
+  paper: PaperId;
+  landscape: boolean;
 }
 
 /**
@@ -48,6 +52,8 @@ export default function AiHdPanel({
   previous,
   selected,
   onChoose,
+  paper,
+  landscape,
 }: AiHdPanelProps) {
   const [isChanging, setIsChanging] = useState(false);
   const ready = isSubjectReady(module, otherWord);
@@ -146,6 +152,8 @@ export default function AiHdPanel({
             tag="Earlier"
             selected={null}
             onChoose={onChoose}
+            paper={paper}
+            landscape={landscape}
           />
         </div>
       )}
@@ -160,6 +168,8 @@ export default function AiHdPanel({
             tag={isMockCheckout ? 'Stand-in' : null}
             selected={selected}
             onChoose={onChoose}
+            paper={paper}
+            landscape={landscape}
           />
           {isMockCheckout && (
             <p className="m-0 text-[11px] leading-[1.4] text-ink-soft">

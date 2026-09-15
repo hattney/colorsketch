@@ -9,16 +9,32 @@ function isHeic(file: File): boolean {
   );
 }
 
+/**
+ * The object URL behind the image currently open in the editor.
+ *
+ * It used to be revoked the moment the image decoded, on the reasoning that a decoded
+ * HTMLImageElement no longer needs its source. That is true for canvas work and false for
+ * everything else: `img.src` is read back later — the AI panel shows the photo it is
+ * working from — and a revoked URL renders there as a broken image. Only one upload is ever
+ * open at a time, so holding exactly one URL and releasing it when the next arrives keeps
+ * the source usable without accumulating anything.
+ */
+let liveUrl: string | null = null;
+
 function decodeToImage(blob: Blob): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
+    if (liveUrl) URL.revokeObjectURL(liveUrl);
     const url = URL.createObjectURL(blob);
+    liveUrl = url;
     const img = new Image();
-    img.onload = () => {
-      URL.revokeObjectURL(url);
-      resolve(img);
-    };
+    img.onload = () => resolve(img);
     img.onerror = () => {
-      URL.revokeObjectURL(url);
+      // A failed decode is the one case with nothing left to point at the URL, including
+      // the HEIC path's native-first attempt before it falls back to conversion.
+      if (liveUrl === url) {
+        URL.revokeObjectURL(url);
+        liveUrl = null;
+      }
       reject(new Error('decode-failed'));
     };
     img.src = url;

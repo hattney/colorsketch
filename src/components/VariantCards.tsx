@@ -1,5 +1,6 @@
 import React from 'react';
 import { VARIANT_LABELS, VARIANTS } from '../utils/aiFlow';
+import { DEFAULT_PAPER, paperRatio, type PaperId } from '../utils/paper';
 import type { StyleVariant } from '../utils/prompt';
 
 interface VariantCardsProps {
@@ -8,10 +9,27 @@ interface VariantCardsProps {
   tag: string | null;
   onChoose?: (variant: StyleVariant, dataUrl: string) => void;
   selected?: StyleVariant | null;
+  /**
+   * The sheet these pages are for. The card is shaped like it, because the image inside is
+   * the page: a box of some other proportion would letterbox or crop the very margins the
+   * buyer is trying to judge.
+   */
+  paper?: PaperId;
+  landscape?: boolean;
 }
 
 /** The Simple / Detailed pair — §15's two style variants, rendered identically wherever they appear. */
-export default function VariantCards({ previews, tag, onChoose, selected }: VariantCardsProps) {
+export default function VariantCards({
+  previews,
+  tag,
+  onChoose,
+  selected,
+  paper = DEFAULT_PAPER,
+  landscape = false,
+}: VariantCardsProps) {
+  const ratio = paperRatio(paper);
+  const sheetAspect = landscape ? `${ratio} / 1` : `1 / ${ratio}`;
+
   return (
     <div className="grid grid-cols-2 gap-2.5">
       {VARIANTS.map((v) => {
@@ -29,7 +47,10 @@ export default function VariantCards({ previews, tag, onChoose, selected }: Vari
               cursor: onChoose ? 'pointer' : 'default',
             }}
           >
-            <span className="relative block aspect-[1/1.2] overflow-hidden border-b-2 border-ink bg-white">
+            <span
+              className="relative block overflow-hidden border-b-2 border-ink bg-white"
+              style={{ aspectRatio: sheetAspect }}
+            >
               <img
                 src={previews[v]}
                 alt={`${VARIANT_LABELS[v].title} style preview`}

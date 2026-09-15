@@ -184,7 +184,13 @@ export function composeOutput(
     if (path.points.length === 0) continue;
     ctx.lineWidth = path.size * scaleRatio;
     ctx.beginPath();
-    ctx.moveTo(path.points[0].x * width, path.points[0].y * height);
+    const x0 = path.points[0].x * width;
+    const y0 = path.points[0].y * height;
+    ctx.moveTo(x0, y0);
+    // A dab — one point, no drag — is a real gesture, and the commonest one on a phone. A
+    // subpath with nothing after the moveTo paints nothing, so it gets an explicit
+    // zero-length segment, which the round cap turns into the dot the user aimed at.
+    if (path.points.length === 1) ctx.lineTo(x0, y0);
     for (let i = 1; i < path.points.length; i++) {
       ctx.lineTo(path.points[i].x * width, path.points[i].y * height);
     }

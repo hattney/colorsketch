@@ -2,6 +2,7 @@ import { AlertCircle, RefreshCw } from 'lucide-react';
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import Editor from '../components/Editor';
 import { CONTACT_EMAIL } from '../config';
+import { isPaperId, type PaperId } from '../utils/paper';
 import type { StyleVariant, SubjectModule } from '../utils/prompt';
 import { Link } from '../utils/router';
 
@@ -34,6 +35,8 @@ type State =
       regensLeft: number;
       module?: SubjectModule;
       otherWord?: string;
+      paper?: PaperId;
+      landscape?: boolean;
     }
   | { kind: 'not_ready'; status: string }
   | { kind: 'missing' }
@@ -74,6 +77,8 @@ export default function EditPurchased() {
             regensLeft?: number;
             module?: SubjectModule;
             otherWord?: string;
+            paper?: unknown;
+            landscape?: unknown;
           }
         | null;
 
@@ -104,6 +109,8 @@ export default function EditPurchased() {
           regensLeft: typeof body.regensLeft === 'number' ? body.regensLeft : 0,
           module: body.module,
           otherWord: body.otherWord,
+          paper: isPaperId(body.paper) ? body.paper : undefined,
+          landscape: typeof body.landscape === 'boolean' ? body.landscape : undefined,
         });
       }
     } catch {
@@ -155,6 +162,8 @@ export default function EditPurchased() {
           regensLeft: state.regensLeft,
           module: state.module,
           otherWord: state.otherWord,
+          paper: state.paper,
+          landscape: state.landscape,
         }}
       />
     );
