@@ -117,6 +117,17 @@ export default function Editor({ image, onReset, stage, onStage, purchased }: Ed
   });
   const isLandscape = orientation === 'landscape';
   const SHEET_RATIO = paperRatio(paper);
+  /**
+   * The shape of every frame that holds a trace.
+   *
+   * This used to be the literal string '1 / 1.414' -- A4, left over from before the sheet was
+   * a choice. On US Letter, the default, that is 9% too tall: `object-contain` letterboxed the
+   * drawing inside its own frame with about 18px of dead space above and below, so the white
+   * rectangle captioned "the sheet above is what prints" was not the sheet -- and the eraser,
+   * which measured the pointer against the frame rather than against the drawing, landed up to
+   * 18px away from the cursor, worst at the bottom of the page.
+   */
+  const SHEET_ASPECT = isLandscape ? `${SHEET_RATIO} / 1` : `1 / ${SHEET_RATIO}`;
 
   const PREVIEW_WIDTH = isLandscape ? Math.round(595 * SHEET_RATIO) : 595;
   const PREVIEW_HEIGHT = isLandscape ? 595 : Math.round(595 * SHEET_RATIO);
@@ -129,6 +140,7 @@ export default function Editor({ image, onReset, stage, onStage, purchased }: Ed
   const TRACE = traceSize(paper, isLandscape);
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const brushRingRef = useRef<HTMLDivElement>(null);
   const thumbRefs = {
     illustration: useRef<HTMLCanvasElement>(null),
     photo: useRef<HTMLCanvasElement>(null),
@@ -546,29 +558,80 @@ export default function Editor({ image, onReset, stage, onStage, purchased }: Ed
   }, [processedImageData, paths, currentPath, text, stage, PREVIEW_WIDTH, PREVIEW_HEIGHT]);
 
   // --- Drawing handlers ---
-  const getCoordinates = (e: React.MouseEvent | React.TouchEvent): Point | null => {
+
+  const clientPoint = (e: React.MouseEvent | React.TouchEvent): { x: number; y: number } | null => {
+    if ('touches' in e) {
+      const t = e.touches[0] ?? e.changedTouches[0];
+      return t ? { x: t.clientX, y: t.clientY } : null;
+    }
+    return { x: e.clientX, y: e.clientY };
+  };
+
+  /**
+   * Where the drawing actually sits inside the canvas element, and how large it is drawn.
+   *
+   * `object-contain` fits the bitmap inside the element and centres it, so the element's own
+   * box is the same rectangle as the drawing only when the two aspect ratios agree. Measuring
+   * this rather than assuming it means the pointer lands where it is pointed even if some
+   * later layout change opens a gap again.
+   */
+  const drawnBox = () => {
     const canvas = canvasRef.current;
     if (!canvas) return null;
     const rect = canvas.getBoundingClientRect();
-
-    let clientX: number, clientY: number;
-    if ('touches' in e) {
-      if (e.touches.length === 0) return null;
-      clientX = e.touches[0].clientX;
-      clientY = e.touches[0].clientY;
-    } else {
-      clientX = e.clientX;
-      clientY = e.clientY;
-    }
-
+    const scale = Math.min(rect.width / canvas.width, rect.height / canvas.height);
+    const width = canvas.width * scale;
+    const height = canvas.height * scale;
     return {
-      x: (clientX - rect.left) / rect.width,
-      y: (clientY - rect.top) / rect.height,
+      scale,
+      width,
+      height,
+      left: rect.left + (rect.width - width) / 2,
+      top: rect.top + (rect.height - height) / 2,
+      rect,
     };
+  };
+
+  const getCoordinates = (e: React.MouseEvent | React.TouchEvent): Point | null => {
+    const box = drawnBox();
+    const at = clientPoint(e);
+    if (!box || !at) return null;
+    return {
+      x: (at.x - box.left) / box.width,
+      y: (at.y - box.top) / box.height,
+    };
+  };
+
+  /**
+   * Parks an outline of the brush under the pointer, at the size it will actually erase.
+   *
+   * The eraser is measured in trace pixels and the canvas is displayed at roughly half that,
+   * so a brush set to 20 covers about 9px on screen -- small enough beside a crosshair that a
+   * stroke which did land read as one that had not. Showing the footprint is what makes the
+   * size slider mean something. Written straight to the node: this fires on every pointer
+   * move and has no bearing on what is drawn.
+   */
+  const moveBrushRing = (e: React.MouseEvent | React.TouchEvent) => {
+    const ring = brushRingRef.current;
+    const box = drawnBox();
+    const at = clientPoint(e);
+    if (!ring || !box || !at) return;
+    const d = eraserSize * box.scale;
+    ring.style.width = `${d}px`;
+    ring.style.height = `${d}px`;
+    ring.style.left = `${at.x - box.rect.left}px`;
+    ring.style.top = `${at.y - box.rect.top}px`;
+    ring.style.opacity = '1';
+  };
+
+  const hideBrushRing = () => {
+    const ring = brushRingRef.current;
+    if (ring) ring.style.opacity = '0';
   };
 
   const startDrawing = (e: React.MouseEvent | React.TouchEvent) => {
     if (!isEraserMode) return;
+    moveBrushRing(e);
     e.preventDefault();
     const point = getCoordinates(e);
     if (!point) return;
@@ -578,6 +641,7 @@ export default function Editor({ image, onReset, stage, onStage, purchased }: Ed
   };
 
   const draw = (e: React.MouseEvent | React.TouchEvent) => {
+    if (isEraserMode) moveBrushRing(e);
     if (!isEraserMode || !livePath.current) return;
     e.preventDefault();
     const point = getCoordinates(e);
@@ -1009,7 +1073,7 @@ export default function Editor({ image, onReset, stage, onStage, purchased }: Ed
             style={{
               width: '100%',
               maxWidth: isLandscape ? '620px' : '440px',
-              aspectRatio: isLandscape ? '1.414 / 1' : '1 / 1.414',
+              aspectRatio: SHEET_ASPECT,
               boxShadow: '6px 6px 0 rgba(20,20,20,.14)',
             }}
           >
@@ -1021,11 +1085,27 @@ export default function Editor({ image, onReset, stage, onStage, purchased }: Ed
               onMouseDown={startDrawing}
               onMouseMove={draw}
               onMouseUp={stopDrawing}
-              onMouseLeave={stopDrawing}
+              onMouseLeave={() => {
+                stopDrawing();
+                hideBrushRing();
+              }}
               onTouchStart={startDrawing}
               onTouchMove={draw}
-              onTouchEnd={stopDrawing}
+              onTouchEnd={() => {
+                stopDrawing();
+                hideBrushRing();
+              }}
             />
+
+            {/* The brush footprint. Pointer-transparent, so it never intercepts a stroke. */}
+            {isEraserMode && (
+              <div
+                ref={brushRingRef}
+                aria-hidden="true"
+                className="pointer-events-none absolute rounded-full border-2 border-[color:var(--crayon-red)] opacity-0"
+                style={{ transform: 'translate(-50%, -50%)', transition: 'opacity 120ms' }}
+              />
+            )}
           </div>
         </div>
 
@@ -1064,9 +1144,7 @@ export default function Editor({ image, onReset, stage, onStage, purchased }: Ed
                       width={THUMB_WIDTH}
                       height={THUMB_HEIGHT}
                       className="w-full bg-white"
-                      style={{
-                        aspectRatio: isLandscape ? '1.414 / 1' : '1 / 1.414',
-                      }}
+                      style={{ aspectRatio: SHEET_ASPECT }}
                     />
                     <span
                       className={`flex items-center justify-between border-t-[2.5px] border-ink px-2 py-1.5 text-[11.5px] font-bold ${

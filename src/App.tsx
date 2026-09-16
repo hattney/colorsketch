@@ -1,4 +1,4 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import Editor from './components/Editor';
 import Faq from './components/Faq';
 import Footer from './components/Footer';
@@ -31,9 +31,39 @@ function Landing() {
   const bar = STAGE_BAR[stage];
   const panelRef = useRef<HTMLDivElement>(null);
 
+  /**
+   * Brings the panel back under the reader's eyes after it swaps contents.
+   *
+   * Every transition below replaces what is inside the panel in place, and by the time
+   * someone presses one of them they are usually at the foot of a panel a screen and a half
+   * tall -- the button that opens the AI screen now spans its bottom edge. The new contents
+   * start far above the viewport, so the only visible effect is that the scroll position is
+   * now wrong, which reads as the page having reloaded and done nothing.
+   *
+   * The scroll has to happen after React has committed the new contents, and it is requested
+   * here but performed in the effect below. rAF would also run after the commit, but only in
+   * a page the browser considers visible -- it is suspended in a background or occluded tab,
+   * which would silently drop the scroll and leave exactly the symptom this fixes.
+   */
+  const wantsReveal = useRef(false);
+  const revealPanel = () => {
+    wantsReveal.current = true;
+  };
+
+  useEffect(() => {
+    if (!wantsReveal.current) return;
+    wantsReveal.current = false;
+    panelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  });
+
   const openImage = (img: HTMLImageElement) => {
     setStage('free');
     setImage(img);
+  };
+
+  const goStage = (s: Stage) => {
+    setStage(s);
+    revealPanel();
   };
 
   return (
@@ -65,19 +95,11 @@ function Landing() {
           <Editor
             image={image}
             stage={stage}
-            onStage={setStage}
+            onStage={goStage}
             onReset={() => {
               setImage(null);
               setStage('free');
-              /*
-               * Swapping the editor back for the uploader in place is invisible from where
-               * the button is: by then the panel is a screen and a half tall and the link is
-               * at the bottom of it, so the drop zone appears far above the viewport and the
-               * page looks like it merely blinked. Put it back under their eyes.
-               */
-              requestAnimationFrame(() =>
-                panelRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' }),
-              );
+              revealPanel();
             }}
           />
         ) : (

@@ -6,7 +6,8 @@ interface TurnstileRenderOptions {
   sitekey: string;
   callback?: (token: string) => void;
   'expired-callback'?: () => void;
-  'error-callback'?: () => void;
+  /** Receives Cloudflare's error code; a falsy return also logs it to the console. */
+  'error-callback'?: (code?: string) => boolean | void;
   'timeout-callback'?: () => void;
   theme?: 'light' | 'dark' | 'auto';
   size?: 'normal' | 'flexible' | 'compact';

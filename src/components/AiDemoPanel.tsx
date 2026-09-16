@@ -12,7 +12,7 @@ import {
 import type { PaperId } from '../utils/paper';
 import { SUBJECT_CHIPS, buildPrompt, type StyleVariant, type SubjectModule } from '../utils/prompt';
 import { isSubjectReady } from './SubjectPicker';
-import Turnstile, { turnstileRequired } from './Turnstile';
+import Turnstile, { isTurnstileConfigError, turnstileRequired } from './Turnstile';
 import VariantCards from './VariantCards';
 
 interface AiDemoPanelProps {
@@ -74,6 +74,8 @@ export default function AiDemoPanel({
   // the gate below is a no-op.
   const [turnstileToken, setTurnstileToken] = useState<string | null>(null);
   const [turnstileNonce, setTurnstileNonce] = useState(0);
+  /** Cloudflare's code for a check that failed, so the dead end below can explain itself. */
+  const [turnstileError, setTurnstileError] = useState<string | null>(null);
   const blockedByTurnstile = turnstileRequired && !turnstileToken;
 
   const fireGenerate = () => {
@@ -81,6 +83,64 @@ export default function AiDemoPanel({
     setTurnstileToken(null);
     setTurnstileNonce((n) => n + 1);
   };
+
+  /** Throws away the failed challenge and mounts a fresh one. */
+  const retryCheck = () => {
+    setTurnstileToken(null);
+    setTurnstileError(null);
+    setTurnstileNonce((n) => n + 1);
+  };
+
+  /*
+   * One widget, in one place. The pre-generate block and the retryable-error block below can
+   * both be on screen at once — an error with no previews yet satisfies both — and each used
+   * to mount its own Turnstile against the same token slot. Two widgets, one slot: solving
+   * either one filled it, and the other's expiry or error emptied it again, so the box was
+   * ticked and the button stayed dead. The error block now points at this one.
+   */
+  const turnstileBox = (
+    <>
+      <Turnstile
+        onToken={setTurnstileToken}
+        onError={setTurnstileError}
+        resetKey={turnstileNonce}
+      />
+      {turnstileError && (
+        <div
+          role="alert"
+          className="mb-3 max-w-[520px] rounded-lg border-[2.5px] border-ink bg-white p-3"
+          style={{ boxShadow: '4px 4px 0 var(--crayon-red)' }}
+        >
+          <p className="m-0 mb-1 text-[12.5px] font-bold">
+            {isTurnstileConfigError(turnstileError)
+              ? 'The bot check is misconfigured on our side.'
+              : 'The bot check could not confirm you are human.'}
+          </p>
+          <p className="m-0 text-[12px] leading-[1.45] text-ink-soft">
+            {isTurnstileConfigError(turnstileError)
+              ? 'AI previews are unavailable until we fix it. Nothing is wrong with your photo, and the free converter still works.'
+              : 'It is usually a VPN, a strict privacy extension, or a blocked cookie. Try the check again, or open this page in a normal window.'}
+          </p>
+          <div className="mt-2 flex flex-wrap items-center gap-3">
+            {!isTurnstileConfigError(turnstileError) && (
+              <button type="button" className="btn btn-inline btn-ghost btn-sm" onClick={retryCheck}>
+                Try the check again
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onBack}
+              className="text-xs font-bold text-ink-soft underline decoration-2 underline-offset-2 hover:text-ink"
+            >
+              Back to the free editor
+            </button>
+          </div>
+          {/* The code is what tells us whether this is ours to fix; it costs nothing to show. */}
+          <p className="m-0 mt-2 text-[10.5px] text-ink-soft">Cloudflare code {turnstileError}</p>
+        </div>
+      )}
+    </>
+  );
 
   const step = (n: string, title: string, hint?: string) => (
     <div className="mb-3">
@@ -202,7 +262,7 @@ export default function AiDemoPanel({
         <div className="pl-8">
           {!previews && !isGenerating && (
             <>
-              {ready && <Turnstile onToken={setTurnstileToken} resetKey={turnstileNonce} />}
+              {ready && turnstileBox}
               <button
                 type="button"
                 className="btn btn-magic btn-inline"
@@ -217,7 +277,7 @@ export default function AiDemoPanel({
                   Pick what is in your photo first.
                 </p>
               )}
-              {ready && blockedByTurnstile && (
+              {ready && blockedByTurnstile && !turnstileError && (
                 <p className="m-0 mt-2 text-[12.5px] font-bold text-ink-soft">
                   One quick check above first.
                 </p>
@@ -252,7 +312,6 @@ export default function AiDemoPanel({
               */}
               {aiError.retryable ? (
                 <div className="mt-2">
-                  {ready && <Turnstile onToken={setTurnstileToken} resetKey={turnstileNonce} />}
                   <button
                     type="button"
                     onClick={fireGenerate}
@@ -261,6 +320,11 @@ export default function AiDemoPanel({
                   >
                     Try again
                   </button>
+                  {blockedByTurnstile && (
+                    <p className="m-0 mt-1 text-[11.5px] text-ink-soft">
+                      Finish the check above first.
+                    </p>
+                  )}
                 </div>
               ) : (
                 <button type="button" onClick={onBack} className="btn btn-inline btn-ghost btn-sm mt-3">
@@ -303,9 +367,7 @@ export default function AiDemoPanel({
                 />
               </div>
               <div className="mt-3">
-                {turnstileRequired && (
-                  <Turnstile onToken={setTurnstileToken} resetKey={turnstileNonce} />
-                )}
+                {turnstileRequired && turnstileBox}
                 <button
                   type="button"
                   className="text-xs font-bold text-ink-soft underline decoration-2 underline-offset-2 hover:text-ink disabled:no-underline disabled:opacity-50"
