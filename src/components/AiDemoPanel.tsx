@@ -1,5 +1,5 @@
 import { ArrowLeft, ArrowRight, Sparkles } from 'lucide-react';
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { formattedPrice } from '../config';
 import { AI_EXAMPLES } from '../utils/aiFlow';
 import {
@@ -66,6 +66,21 @@ export default function AiDemoPanel({
   onBack,
 }: AiDemoPanelProps) {
   const ready = isSubjectReady(module, otherWord);
+
+  /**
+   * Whether the bot check has been asked for yet, latched on.
+   *
+   * The widget used to be mounted on `ready` directly, which is not a stable condition while
+   * someone is still answering step 1: on the Other chip it flips with every empty-to-typed
+   * transition of the text box. A challenge that is already running would be torn down and a
+   * new one started because a letter was deleted -- churn Cloudflare sees as a browser
+   * restarting challenges, which is not what you want a bot detector to be looking at. Once
+   * a subject has been picked, the check stays put and the button alone reflects `ready`.
+   */
+  const [askedForCheck, setAskedForCheck] = useState(false);
+  useEffect(() => {
+    if (ready) setAskedForCheck(true);
+  }, [ready]);
   const price = formattedPrice();
   const example = AI_EXAMPLES[module ?? 'auto'];
 
@@ -262,7 +277,7 @@ export default function AiDemoPanel({
         <div className="pl-8">
           {!previews && !isGenerating && (
             <>
-              {ready && turnstileBox}
+              {askedForCheck && turnstileBox}
               <button
                 type="button"
                 className="btn btn-magic btn-inline"
