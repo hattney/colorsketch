@@ -24,7 +24,8 @@ ColorSketch(사진 → 컬러링 페이지)는 결제를 붙이면 Vercel Pro(�
 | KV 저장소 생성 | 완료, id `1ae777986009479e89ceb444ea279ea1`, `wrangler.toml`에 반영 |
 | Pages 프로젝트 생성 | 완료, `colorsketch.pages.dev` |
 | 배포 | 완료 (2026-11-16), curl 점검 전부 통과, 관리자 토큰은 `.env.pages.local` |
-| 방문자 집계 켜기 | **안 함** |
+| 방문자 집계 켜기 | **안 함** (현희님 대시보드 작업) |
+| Google Search Console | 소유권 확인 완료 (2026-11-16, HTML 파일 방식, `functions/google125384cf37bfbfa1.html.ts`로 제공) |
 
 기존 Vercel 사이트(`colorsketch-amber.vercel.app`, 유료 경로 포함, noindex)는 그대로 떠 있습니다. 건드리지 않습니다.
 
