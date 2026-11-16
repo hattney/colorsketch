@@ -37,6 +37,7 @@ import type { StyleVariant, SubjectModule } from '../utils/prompt';
 import { rememberOrder } from '../utils/orderRecovery';
 import { stashPhoto } from '../utils/photoStash';
 import { regeneratePages } from '../utils/regenerate';
+import { track } from '../utils/track';
 import AiDemoPanel from './AiDemoPanel';
 import AiHdPanel from './AiHdPanel';
 import Waitlist from './Waitlist';
@@ -344,6 +345,23 @@ export default function Editor({ image, onReset, stage, onStage, purchased }: Ed
    * came out near-empty or broken into short strokes.
    */
   const recommendAi = analysis?.recommendedMode === 'photo' && needsAi;
+
+  /**
+   * Usage counts for the free edition (`track` does nothing in the full one). Each image is
+   * counted once as opened and, if it gets flagged, once as hard — however often the flag
+   * flickers while the trace settles — so hard ÷ open is the share of uploads the free
+   * converter cannot handle.
+   */
+  const hardCounted = useRef<HTMLImageElement | null>(null);
+  useEffect(() => {
+    track('open');
+  }, [image]);
+  useEffect(() => {
+    if (recommendAi && hardCounted.current !== image) {
+      hardCounted.current = image;
+      track('hard');
+    }
+  }, [recommendAi, image]);
 
   /**
    * Builds the Simple / Detailed pair.
@@ -686,6 +704,7 @@ export default function Editor({ image, onReset, stage, onStage, purchased }: Ed
       link.download = isHdEditing ? `ColorSketch-${sheet}-HD.png` : `ColorSketch-${sheet}.png`;
       link.href = canvas.toDataURL('image/png');
       link.click();
+      track('download');
     } catch (e) {
       console.error('Export failed', e);
       alert('Failed to export image. Please try again.');
@@ -720,6 +739,7 @@ export default function Editor({ image, onReset, stage, onStage, purchased }: Ed
         </html>
       `);
       printWindow.document.close();
+      track('print');
     } catch (e) {
       console.error('Print failed', e);
       alert('Failed to prepare print. Please try again.');

@@ -26,6 +26,7 @@ ColorSketch(사진 → 컬러링 페이지)는 결제를 붙이면 Vercel Pro(�
 | 배포 | 완료 (2026-11-16), curl 점검 전부 통과, 관리자 토큰은 `.env.pages.local` |
 | 방문자 집계 켜기 | 완료 (2026-11-16, 프로젝트 → 메트릭 탭 맨 아래 Web Analytics, 배포 시 비콘 자동 삽입) |
 | Google Search Console | 소유권 확인 완료 (2026-11-16, HTML 파일 방식, `functions/google125384cf37bfbfa1.html.ts`로 제공) |
+| 사용 횟수 카운터 | 완료 (2026-11-16), `/api/event` |
 
 기존 Vercel 사이트(`colorsketch-amber.vercel.app`, 유료 경로 포함, noindex)는 그대로 떠 있습니다. 건드리지 않습니다.
 
@@ -124,12 +125,14 @@ npx wrangler kv key delete "e:deploy-check@example.com" --namespace-id <KV id> -
 2. **Google Search Console 등록:** 사이트 소유 확인이 필요합니다. HTML 태그 방식을 고르면 받은 메타 태그를 `index.html`에 넣고 다시 배포해야 하니, 태그 값을 받아서 작업합니다.
 3. **도메인(선택):** 나중에 자체 도메인을 붙이면 `SITE_URL`을 바꿔 다시 빌드·배포합니다.
 4. **대기 명단 보는 법:** `https://<주소>/api/waitlist?token=<.env.pages.local의 값>`
+5. **사용 횟수 보는 법:** `https://<주소>/api/event?token=<같은 값>`. 날짜별(UTC) open(변환), hard(어려운 사진 판정), download, print 횟수. hard÷open이 무료 변환기가 감당 못 하는 비율, download÷open이 실제 사용률입니다.
 
 ## 5. 코드 구조 요약
 
 - `src/config.ts`의 `FREE_ONLY` (`import.meta.env.MODE === 'free'`)가 무료 버전 분기의 전부입니다.
 - 분기가 들어간 곳: `App.tsx`(결제 관련 경로 차단), `Editor.tsx`(AI 버튼 숨김, 대기 명단 카드), `Hero.tsx`, `Steps.tsx`, `Samples.tsx`, `Faq.tsx`(무료용 목록 별도), `Footer.tsx`, `Terms.tsx`.
 - `src/components/Waitlist.tsx`: 이메일 폼. `/api/waitlist`로 POST.
+- `functions/api/event.ts` + `src/utils/track.ts`: 사용 횟수 카운터. 이벤트 이름만 보내고 KV에 `n:날짜:이벤트` 키로 숫자만 저장합니다. 무료 빌드에서만 동작(전체 빌드에서는 코드가 빠짐). KV 무료 한도가 하루 쓰기 1,000회라 하루 이벤트가 그보다 많아지면 덜 셉니다.
 - `functions/api/waitlist.ts`: Cloudflare Pages Function. KV에 이메일, 시각, 출처, hard(어려운 사진 여부)만 저장. IP는 저장하지 않고 해시로 시간당 5회 제한만 합니다.
 - `vite.config.ts`의 `freeEdition` 플러그인: free 모드에서 noindex 제거, robots.txt·sitemap.xml 생성, `SITE_URL`이 있으면 canonical·공유 이미지 태그 삽입.
 - `scripts/make-og.mjs`: 공유 이미지(`public/og.png`) 생성.
