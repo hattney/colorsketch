@@ -8,4 +8,4 @@ compatibility_date = "2025-01-01"
 # The id is filled in by `wrangler kv namespace create WAITLIST`.
 [[kv_namespaces]]
 binding = "WAITLIST"
-id = "REPLACE_WITH_KV_NAMESPACE_ID"
+id = "1ae777986009479e89ceb444ea279ea1"
