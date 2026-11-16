@@ -1,6 +1,8 @@
 import React from 'react';
+import { FREE_ONLY } from '../config';
 import { sampleUrl, useImagesExist } from '../utils/samples';
 import BeforeAfter from './BeforeAfter';
+import Waitlist from './Waitlist';
 
 interface Sample {
   name: string;
@@ -153,7 +155,7 @@ export default function Samples() {
       <p className="m-0 mb-5 max-w-[70ch] text-[15px] text-ink-soft">
         Sketches, illustrations, 3D renders, product shots, bold graphics — anything whose shapes
         are already drawn converts beautifully right in your browser. Instant, unlimited, no
-        account, and the file comes out at the same resolution as the paid one.{' '}
+        account{FREE_ONLY ? ', and the file comes out print-ready' : ', and the file comes out at the same resolution as the paid one'}.{' '}
         <strong className="text-ink">For these, free is the finished product.</strong>
       </p>
       <div className="grid grid-cols-1 gap-7 md:grid-cols-2">
@@ -162,19 +164,36 @@ export default function Samples() {
         ))}
       </div>
 
-      <GroupHead pill="AI" pillColor="var(--crayon-red)" title="Close-up photos — the hard case" />
+      <GroupHead
+        pill={FREE_ONLY ? 'Coming soon' : 'AI'}
+        pillColor="var(--crayon-red)"
+        title="Close-up photos — the hard case"
+      />
       <p className="m-0 mb-5 max-w-[70ch] text-[15px] text-ink-soft">
         Fur, skin and soft backgrounds are made of gradients rather than lines, so there is simply
         less for a tracer to find. The free converter still gives you the main contours — try it
         first, it may be all you need. When it isn&apos;t, AI retouch redraws the photo from
         scratch as bold, closed outlines, and the difference is the kind you can see from across
         the room.
+        {FREE_ONLY && ' It is not open yet — the pages below show what it will do.'}
       </p>
       <div className="grid grid-cols-1 gap-7 md:grid-cols-2">
         {AI_SAMPLES.map((s) => (
           <AiCard key={s.name} sample={s} />
         ))}
       </div>
+
+      {FREE_ONLY && (
+        <div className="magic-card mt-7 p-5">
+          <div className="mb-1 font-display text-[16.5px] font-bold">
+            Get AI retouch when it opens
+          </div>
+          <p className="m-0 mb-3 max-w-[60ch] text-[13px] leading-[1.5] text-ink-soft">
+            Leave your email and we will tell you the day it is ready.
+          </p>
+          <Waitlist source="samples" />
+        </div>
+      )}
     </section>
   );
 }

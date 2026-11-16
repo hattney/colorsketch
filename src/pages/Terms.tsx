@@ -1,5 +1,5 @@
 import React from 'react';
-import { CONTACT_EMAIL } from '../config';
+import { CONTACT_EMAIL, FREE_ONLY } from '../config';
 import { Link } from '../utils/router';
 
 /** CONTENT_UPDATE.md §8 — confirmed copy, do not reword. */
@@ -17,8 +17,10 @@ export default function Terms() {
         You must only upload images that you own or are licensed to use. Do not upload images that
         infringe copyright, violate privacy or publicity rights, or contain unlawful content. You
         are solely responsible for your uploads and how you use the results. We may remove content
-        and refuse service in cases of misuse. Uploaded images used for AI conversion are stored
-        temporarily for processing and deleted within 7 days.
+        and refuse service in cases of misuse.{' '}
+        {FREE_ONLY
+          ? 'Conversions run entirely in your browser: your images are never uploaded to us or stored. If you join the AI retouch waitlist, we keep your email address only to tell you when it launches, and delete it on request.'
+          : 'Uploaded images used for AI conversion are stored temporarily for processing and deleted within 7 days.'}
       </p>
 
       <p className="m-0 mb-9 text-ink-soft">

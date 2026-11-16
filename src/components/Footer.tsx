@@ -1,5 +1,5 @@
 import React from 'react';
-import { CONTACT_EMAIL } from '../config';
+import { CONTACT_EMAIL, FREE_ONLY } from '../config';
 import { Link } from '../utils/router';
 
 const linkClass = 'font-bold text-ink underline decoration-2 underline-offset-[3px]';
@@ -24,9 +24,11 @@ export default function Footer() {
             <Link to="/terms" className={linkClass}>
               Terms
             </Link>
-            <Link to="/refund-policy" className={linkClass}>
-              Refund Policy
-            </Link>
+            {!FREE_ONLY && (
+              <Link to="/refund-policy" className={linkClass}>
+                Refund Policy
+              </Link>
+            )}
             <span>© 2026 ColorSketch</span>
           </div>
         </div>

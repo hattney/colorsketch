@@ -1,4 +1,5 @@
 import React from 'react';
+import { FREE_ONLY } from '../config';
 
 /**
  * All three steps are free. The AI upsell is deliberately kept out of them and mentioned
@@ -33,8 +34,9 @@ export default function Steps() {
       </div>
 
       <p className="m-0 mt-4 text-center text-[13.5px] text-ink-soft">
-        All three steps are free, every time. Close-up photos of pets and people are the hard
-        case — that&apos;s the only place the optional AI retouch comes in.
+        {FREE_ONLY
+          ? 'All three steps are free, every time. Drawings and bold shapes convert best; close-up photos of pets and people are the hard case.'
+          : 'All three steps are free, every time. Close-up photos of pets and people are the hard case — that’s the only place the optional AI retouch comes in.'}
       </p>
     </div>
   );

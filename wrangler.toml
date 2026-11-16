@@ -1,0 +1,11 @@
+# Cloudflare Pages — the free edition only (`npm run build:free`). Vercel ignores this file;
+# the full edition with AI retouch and checkout still deploys there from the same repo.
+name = "colorsketch"
+pages_build_output_dir = "dist"
+compatibility_date = "2025-01-01"
+
+# Holds the AI-retouch waitlist. See functions/api/waitlist.ts.
+# The id is filled in by `wrangler kv namespace create WAITLIST`.
+[[kv_namespaces]]
+binding = "WAITLIST"
+id = "REPLACE_WITH_KV_NAMESPACE_ID"

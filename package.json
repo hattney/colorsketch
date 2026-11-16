@@ -9,7 +9,10 @@
     "preview": "vite preview",
     "clean": "rm -rf dist",
     "lint": "tsc --noEmit",
-    "build:review": "node scripts/build-single-file.mjs"
+    "build:review": "node scripts/build-single-file.mjs",
+    "dev:free": "vite --mode free --port=3000 --host=0.0.0.0",
+    "build:free": "vite build --mode free",
+    "pages:dev": "npx wrangler pages dev dist --port 8788 --kv WAITLIST --binding ADMIN_TOKEN=local-test-token"
   },
   "dependencies": {
     "@vercel/blob": "^2.8.0",

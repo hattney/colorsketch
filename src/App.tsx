@@ -12,6 +12,7 @@ import RefundPolicy from './pages/RefundPolicy';
 import Terms from './pages/Terms';
 import EditPurchased from './pages/EditPurchased';
 import Thanks from './pages/Thanks';
+import { FREE_ONLY } from './config';
 import { STAGE_BAR, type Stage } from './utils/aiFlow';
 import { usePath } from './utils/router';
 
@@ -68,7 +69,7 @@ function Landing() {
 
   return (
     <>
-      <OrderRecoveryBanner />
+      {!FREE_ONLY && <OrderRecoveryBanner />}
       <Hero />
       <Steps />
 
@@ -116,8 +117,11 @@ function Landing() {
 export default function App() {
   const path = usePath();
 
+  // The free edition sells nothing, so the pages that exist only around a purchase fall
+  // through to the landing page rather than describing orders nobody can place.
   let page: React.ReactNode;
   if (path === '/terms') page = <Terms />;
+  else if (FREE_ONLY) page = <Landing />;
   else if (path === '/refund-policy') page = <RefundPolicy />;
   else if (path === '/thanks') page = <Thanks />;
   else if (path === '/edit') page = <EditPurchased />;

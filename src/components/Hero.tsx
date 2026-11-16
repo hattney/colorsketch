@@ -1,9 +1,15 @@
 import React from 'react';
+import { FREE_ONLY } from '../config';
 import { sampleUrl, useImagesExist } from '../utils/samples';
 import BeforeAfter from './BeforeAfter';
 
-const BEFORE = sampleUrl('leaf-before.jpg');
-const AFTER = sampleUrl('leaf-ai.png');
+/*
+ * The hero comparison has to be something the visitor can reproduce in the next minute. In
+ * the full edition that is the AI retouch; in the free edition there is no AI to run, so it
+ * shows a result the in-browser converter made on its own.
+ */
+const BEFORE = sampleUrl(FREE_ONLY ? 'baby-before.jpg' : 'leaf-before.jpg');
+const AFTER = sampleUrl(FREE_ONLY ? 'baby-after.png' : 'leaf-ai.png');
 
 export default function Hero() {
   const showcase = useImagesExist([BEFORE, AFTER]);
@@ -22,9 +28,15 @@ export default function Hero() {
         <p className="m-0 mb-[26px] max-w-[45ch] text-[17px] text-ink-soft">
           Upload a photo or drawing, and ColorSketch instantly converts it into a clean, printable
           coloring page — right in your browser.{' '}
-          <strong className="text-ink">No sign-up needed. Try the free converter first</strong> —
-          then, only if a photo needs it, upgrade to an AI-enhanced version for smoother, richer
-          lines worth framing.
+          {FREE_ONLY ? (
+            <strong className="text-ink">Free, unlimited, and no sign-up needed.</strong>
+          ) : (
+            <>
+              <strong className="text-ink">No sign-up needed. Try the free converter first</strong>{' '}
+              — then, only if a photo needs it, upgrade to an AI-enhanced version for smoother,
+              richer lines worth framing.
+            </>
+          )}
         </p>
 
         <p
@@ -59,14 +71,16 @@ export default function Hero() {
           <BeforeAfter
             before={BEFORE}
             after={AFTER}
-            beforeLabel="Photo"
-            afterLabel="AI"
-            afterTagColor="var(--crayon-red)"
-            label="Houseplant corner"
+            beforeLabel={FREE_ONLY ? 'Original' : 'Photo'}
+            afterLabel={FREE_ONLY ? 'Free' : 'AI'}
+            afterTagColor={FREE_ONLY ? 'var(--crayon-green)' : 'var(--crayon-red)'}
+            label={FREE_ONLY ? 'Sketched princess' : 'Houseplant corner'}
           />
           {/* Labelled AI, not "coloring page": this is the retouched result, not the free pass. */}
           <p className="m-0 mt-3 text-center text-[12.5px] text-ink-soft">
-            Drag the handle to compare — this one used AI retouch
+            {FREE_ONLY
+              ? 'Drag the handle to compare — made with the free converter'
+              : 'Drag the handle to compare — this one used AI retouch'}
           </p>
         </div>
       )}

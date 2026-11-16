@@ -4,6 +4,7 @@ import { VARIANTS, VARIANT_SETTINGS, type Stage } from '../utils/aiFlow';
 import { AiPreviewError, AiPreviewUnavailable, encodeForUpload, requestAiPreview } from '../utils/aiPreview';
 import { analyzeImage, type ImageAnalysis } from '../utils/analyze';
 import { startCheckout } from '../utils/checkout';
+import { FREE_ONLY } from '../config';
 import {
   MIN_INK,
   SOLID_ERODE_DIVISOR,
@@ -38,6 +39,7 @@ import { stashPhoto } from '../utils/photoStash';
 import { regeneratePages } from '../utils/regenerate';
 import AiDemoPanel from './AiDemoPanel';
 import AiHdPanel from './AiHdPanel';
+import Waitlist from './Waitlist';
 
 interface EditorProps {
   image: HTMLImageElement;
@@ -981,6 +983,30 @@ export default function Editor({ image, onReset, stage, onStage, purchased }: Ed
    * same card spanning both columns is read without scrolling and has room to say what it
    * is on one line.
    */
+  /**
+   * The free edition's version of the same card. Same place, same moment — someone has just
+   * seen their own page and can judge it — but there is no AI stage to walk into, so it asks
+   * for an address instead of a click. Which headline it wears still follows the page: the
+   * people worth hearing from are the ones looking at a photo the tracer could not follow.
+   */
+  const waitlistCallout = (
+    <div className="magic-card flex flex-col gap-4 p-5 lg:flex-row lg:items-center lg:justify-between lg:gap-8">
+      <div className="min-w-0">
+        <div className="mb-1 font-display text-[16.5px] font-bold">
+          {recommendAi ? 'This one is a hard photo to trace' : 'Want cleaner lines from photos?'}
+        </div>
+        <p className="m-0 max-w-[58ch] text-[13px] leading-[1.5] text-ink-soft">
+          {recommendAi
+            ? 'It is mostly soft gradient, so there is little for the tracer to follow. We are building an AI retouch that redraws photos like this as bold, closed outlines.'
+            : 'We are building an AI retouch that redraws a photo from scratch as bold, closed outlines — the kind of page that is a pleasure to color.'}
+        </p>
+      </div>
+      <div className="shrink-0">
+        <Waitlist source="editor" hard={recommendAi} />
+      </div>
+    </div>
+  );
+
   const aiCallout = (
     <div className="magic-card flex flex-col gap-4 p-5 sm:flex-row sm:items-center sm:justify-between sm:gap-8">
       <div className="min-w-0">
@@ -1117,15 +1143,17 @@ export default function Editor({ image, onReset, stage, onStage, purchased }: Ed
                 <h4 className="m-0 font-display text-sm font-bold">Free editor</h4>
                 {/* Quiet doorway. The loud invitation lives beside the download, where someone
                   has actually seen their page and can judge it. */}
-                <button
-                  type="button"
-                  onClick={() => onStage(paid ? 'ai-hd' : 'ai-demo')}
-                  className="btn btn-inline btn-ghost btn-sm"
-                  title={paid ? 'Back to your HD page' : 'Open the AI page editor'}
-                >
-                  <Sparkles className="h-4 w-4" aria-hidden="true" />
-                  {paid ? 'HD page' : 'AI preview'}
-                </button>
+                {!FREE_ONLY && (
+                  <button
+                    type="button"
+                    onClick={() => onStage(paid ? 'ai-hd' : 'ai-demo')}
+                    className="btn btn-inline btn-ghost btn-sm"
+                    title={paid ? 'Back to your HD page' : 'Open the AI page editor'}
+                  >
+                    <Sparkles className="h-4 w-4" aria-hidden="true" />
+                    {paid ? 'HD page' : 'AI preview'}
+                  </button>
+                )}
               </div>
 
               <h4 className="m-0 mb-3 font-display text-sm font-bold">Pick a style</h4>
@@ -1292,7 +1320,7 @@ export default function Editor({ image, onReset, stage, onStage, purchased }: Ed
       */}
       {stage === 'free' && (
         <div className="border-t-[2.5px] border-ink p-5 sm:p-6">
-          {aiCallout}
+          {FREE_ONLY ? waitlistCallout : aiCallout}
           {startOver}
         </div>
       )}

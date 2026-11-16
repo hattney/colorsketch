@@ -1,9 +1,9 @@
 import React, { useId, useState } from 'react';
-import { CONTACT_EMAIL } from '../config';
+import { CONTACT_EMAIL, FREE_ONLY } from '../config';
 import { Link } from '../utils/router';
 
 /** CONTENT_UPDATE.md §5 (eight questions) + §16 (ninth). Copy is confirmed — do not reword. */
-const ITEMS: { q: string; a: React.ReactNode }[] = [
+const FULL_ITEMS: { q: string; a: React.ReactNode }[] = [
   {
     q: 'Is ColorSketch free?',
     a: 'The in-browser converter is 100% free, unlimited, and needs no sign-up — and it gives you the same print-ready file the paid version does. The optional AI HD conversion is a one-time paid download per image.',
@@ -62,6 +62,48 @@ const ITEMS: { q: string; a: React.ReactNode }[] = [
     a: 'Photos are made of soft gradients rather than lines, so the free in-browser converter has less to trace. Use AI retouch — it redraws your photo as bold, closed line art first, which is what makes a page you can actually color.',
   },
 ];
+
+/**
+ * The free edition's answers. Not a trimmed copy of the list above: every answer there that
+ * mentions paying, previews or refunds describes something this edition does not have, and a
+ * FAQ that explains a checkout nobody can reach reads as a site that is hiding one.
+ */
+const FREE_ITEMS: { q: string; a: React.ReactNode }[] = [
+  {
+    q: 'Is ColorSketch free?',
+    a: 'Yes. The converter is 100% free, unlimited, and needs no sign-up. It runs in your browser and gives you a print-ready coloring page on US Letter or A4.',
+  },
+  {
+    q: 'How do I turn a photo into a coloring page?',
+    a: 'Upload a photo or drawing, pick the style that looks best, and adjust line thickness and detail until you like it. Then download the page as a PNG or print it directly.',
+  },
+  {
+    q: 'What image formats can I upload?',
+    a: 'JPG, PNG, WebP, and HEIC (iPhone), up to 10 MB.',
+  },
+  {
+    q: 'What paper sizes can I print on?',
+    a: 'US Letter and A4, portrait or landscape. Pick the sheet in the editor and the page is fitted to it, so what you see on screen is what comes out of the printer.',
+  },
+  {
+    q: 'What happens to my uploaded photos?',
+    a: 'Nothing leaves your device. The conversion runs entirely in your browser, so your photo is never uploaded to us or stored anywhere.',
+  },
+  {
+    q: 'Can I use the coloring pages commercially?',
+    a: "Pages made from your own images are yours to use. You're responsible for having rights to the image you upload.",
+  },
+  {
+    q: 'Why does my photo look worse than the examples?',
+    a: 'Photos are made of soft gradients rather than lines, so there is less for the converter to trace. Try the other style, raise the detail, and use the eraser to clean up stray marks. Drawings, illustrations and photos with a plain background convert best.',
+  },
+  {
+    q: 'Will there be an AI version?',
+    a: 'We are building an optional AI retouch that redraws hard photos as bold, closed line art. It will be a paid extra; the converter stays free. Leave your email in the box under the editor and we will tell you when it opens.',
+  },
+];
+
+const ITEMS = FREE_ONLY ? FREE_ITEMS : FULL_ITEMS;
 
 function FaqItem({ q, a, defaultOpen }: { q: string; a: React.ReactNode; defaultOpen?: boolean }) {
   const [open, setOpen] = useState(!!defaultOpen);
